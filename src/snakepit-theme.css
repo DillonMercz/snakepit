@@ -212,7 +212,7 @@ body {
   position: absolute;
   top: 20px;
   left: 20px;
-  right: 20px;
+  right: 240px; /* Leave space for minimap */
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -455,6 +455,250 @@ body {
   100% { transform: translateY(4px); }
 }
 
+/* Enhanced Landing Page Styles */
+.falling-money-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.landing-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+  gap: 3rem;
+}
+
+.snakepit-logo {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.snakepit-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 5rem;
+  font-weight: 900;
+  margin: 0;
+  background: linear-gradient(45deg, var(--neon-green), var(--neon-cyan), var(--neon-pink));
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: neon-pulse 2s ease-in-out infinite alternate,
+             gradient-shift 3s ease-in-out infinite;
+  text-shadow: 
+    0 0 10px var(--neon-green),
+    0 0 20px var(--neon-green),
+    0 0 30px var(--neon-green);
+}
+
+.snakepit-subtitle {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.5rem;
+  margin: 1rem 0 0 0;
+  opacity: 0.9;
+}
+
+.game-stats {
+  display: flex;
+  gap: 3rem;
+  margin: 2rem 0;
+}
+
+.stat-card {
+  text-align: center;
+  padding: 1.5rem;
+  background: rgba(10, 10, 15, 0.8);
+  border: 2px solid var(--neon-green);
+  border-radius: 10px;
+  box-shadow: var(--glow-small) var(--neon-green);
+  min-width: 120px;
+}
+
+.stat-number {
+  font-family: 'Orbitron', monospace;
+  font-size: 3rem;
+  font-weight: 900;
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mode-selection {
+  text-align: center;
+  max-width: 1000px;
+}
+
+.mode-selection-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 2.5rem;
+  margin-bottom: 2rem;
+}
+
+.mode-buttons {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.mode-button {
+  background: rgba(10, 10, 15, 0.9);
+  border: 2px solid var(--neon-green);
+  border-radius: 15px;
+  padding: 2rem;
+  min-width: 350px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+}
+
+.mode-button:hover {
+  border-color: var(--neon-cyan);
+  box-shadow: 
+    var(--glow-medium) var(--neon-cyan),
+    inset var(--glow-small) var(--neon-cyan);
+  transform: translateY(-5px);
+}
+
+.mode-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.mode-button h3 {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.8rem;
+  color: var(--neon-green);
+  margin: 0 0 1rem 0;
+  text-shadow: var(--glow-small) var(--neon-green);
+}
+
+.mode-button:hover h3 {
+  color: var(--neon-cyan);
+  text-shadow: var(--glow-small) var(--neon-cyan);
+}
+
+.mode-button p {
+  color: var(--text-secondary);
+  margin: 0 0 1.5rem 0;
+  line-height: 1.4;
+  font-size: 1.1rem;
+}
+
+.mode-features {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.mode-features span {
+  color: var(--neon-green);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+}
+
+.classic-mode:hover .mode-features span {
+  color: var(--neon-cyan);
+}
+
+.combat-mode {
+  border-color: var(--neon-pink);
+  box-shadow: var(--glow-small) var(--neon-pink);
+}
+
+.combat-mode:hover {
+  border-color: var(--neon-orange);
+  box-shadow: 
+    var(--glow-medium) var(--neon-orange),
+    inset var(--glow-small) var(--neon-orange);
+}
+
+.combat-mode h3 {
+  color: var(--neon-pink);
+  text-shadow: var(--glow-small) var(--neon-pink);
+}
+
+.combat-mode:hover h3 {
+  color: var(--neon-orange);
+  text-shadow: var(--glow-small) var(--neon-orange);
+}
+
+.combat-mode .mode-features span {
+  color: var(--neon-pink);
+}
+
+.combat-mode:hover .mode-features span {
+  color: var(--neon-orange);
+}
+
+.game-features {
+  max-width: 1000px;
+  margin-top: 3rem;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+}
+
+.feature-item {
+  text-align: center;
+  padding: 1.5rem;
+  background: rgba(10, 10, 15, 0.6);
+  border: 1px solid var(--neon-green);
+  border-radius: 10px;
+  box-shadow: var(--glow-small) var(--neon-green);
+  transition: all 0.3s ease;
+}
+
+.feature-item:hover {
+  border-color: var(--neon-cyan);
+  box-shadow: var(--glow-medium) var(--neon-cyan);
+  transform: translateY(-3px);
+}
+
+.feature-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.feature-item h4 {
+  font-family: 'Orbitron', monospace;
+  color: var(--neon-green);
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+}
+
+.feature-item:hover h4 {
+  color: var(--neon-cyan);
+}
+
+.feature-item p {
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+  font-size: 0.9rem;
+}
+
 /* Cash/Coin Graphics - We'll add these as CSS sprites or icons */
 .cash-icon::before {
   content: '💰';
@@ -468,4 +712,47 @@ body {
   font-size: 1.2em;
   margin-right: 0.5rem;
   filter: hue-rotate(60deg) brightness(1.5);
+}
+
+/* Enhanced Responsive Design */
+@media (max-width: 768px) {
+  .snakepit-title {
+    font-size: 3rem;
+  }
+  
+  .snakepit-subtitle {
+    font-size: 1.2rem;
+  }
+  
+  .game-stats {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+  }
+  
+  .stat-card {
+    min-width: 100px;
+  }
+  
+  .stat-number {
+    font-size: 2rem;
+  }
+  
+  .mode-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .mode-button {
+    min-width: 300px;
+  }
+  
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .landing-content {
+    gap: 2rem;
+    padding: 1rem;
+  }
 }

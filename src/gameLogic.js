@@ -135,10 +135,10 @@ class Game {
         console.log('Initializing game...');
         
         // Create AI snakes
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 15; i++) {
             const x = Math.random() * this.worldWidth;
             const y = Math.random() * this.worldHeight;
-            const colors = ['#f44336', '#2196F3', '#FF9800', '#9C27B0', '#00BCD4'];
+            const colors = ['#ff0080', '#00ff41', '#00ffff', '#ff8000', '#8000ff', '#ffff00', '#ff4444', '#44ff44', '#4444ff'];
             const color = colors[Math.floor(Math.random() * colors.length)];
             this.aiSnakes.push(new Snake(x, y, color, false));
         }
@@ -821,30 +821,34 @@ class Game {
                     this.ctx.setLineDash([]);
                 }
                 
-                // Draw pixelated coin/cash
+                // Draw regular colorful food
                 const foodSize = beingVacuumed ? food.size * 1.2 : food.size;
                 
-                // Draw coin base
-                this.ctx.fillStyle = '#FFD700'; // Gold color
+                // Draw food with glow effect
+                const glowGradient = this.ctx.createRadialGradient(x, y, 0, x, y, foodSize * 1.5);
+                glowGradient.addColorStop(0, food.color);
+                glowGradient.addColorStop(0.7, this.addAlpha(food.color, 0.8));
+                glowGradient.addColorStop(1, 'transparent');
+                
+                this.ctx.fillStyle = glowGradient;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, foodSize * 1.5, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Draw main food body
+                this.ctx.fillStyle = food.color;
                 this.ctx.beginPath();
                 this.ctx.arc(x, y, foodSize, 0, Math.PI * 2);
                 this.ctx.fill();
                 
-                // Draw coin inner circle (darker gold)
-                this.ctx.fillStyle = '#DAA520';
+                // Add highlight
+                this.ctx.fillStyle = this.addAlpha('#ffffff', 0.6);
                 this.ctx.beginPath();
-                this.ctx.arc(x, y, foodSize * 0.7, 0, Math.PI * 2);
+                this.ctx.arc(x - foodSize * 0.3, y - foodSize * 0.3, foodSize * 0.3, 0, Math.PI * 2);
                 this.ctx.fill();
                 
-                // Draw dollar sign ($) in the center
-                this.ctx.fillStyle = '#8B4513'; // Dark brown
-                this.ctx.font = `${foodSize * 1.2}px monospace`;
-                this.ctx.textAlign = 'center';
-                this.ctx.textBaseline = 'middle';
-                this.ctx.fillText('$', x, y);
-                
                 // Add outline
-                this.ctx.strokeStyle = beingVacuumed ? '#ffffff' : '#B8860B';
+                this.ctx.strokeStyle = beingVacuumed ? '#ffffff' : this.addAlpha(food.color, 0.8);
                 this.ctx.lineWidth = beingVacuumed ? 2 : 1;
                 this.ctx.beginPath();
                 this.ctx.arc(x, y, foodSize, 0, Math.PI * 2);
@@ -1007,24 +1011,29 @@ class Game {
                 // Reset line dash
                 this.ctx.setLineDash([]);
                 
-                // Draw golden coin base
-                this.ctx.fillStyle = '#FFD700';
+                // Draw glowing orb core
+                const coreGradient = this.ctx.createRadialGradient(x, y, 0, x, y, glowSize * 0.8);
+                coreGradient.addColorStop(0, `hsla(${orb.hue}, 100%, 90%, 1)`);
+                coreGradient.addColorStop(0.5, `hsla(${orb.hue}, 100%, 70%, 0.8)`);
+                coreGradient.addColorStop(1, `hsla(${orb.hue}, 100%, 50%, 0.4)`);
+                
+                this.ctx.fillStyle = coreGradient;
                 this.ctx.beginPath();
                 this.ctx.arc(x, y, glowSize * 0.8, 0, Math.PI * 2);
                 this.ctx.fill();
                 
-                // Draw inner golden circle
-                this.ctx.fillStyle = '#FFA500';
+                // Draw inner bright core
+                this.ctx.fillStyle = `hsla(${orb.hue}, 100%, 95%, 0.9)`;
                 this.ctx.beginPath();
-                this.ctx.arc(x, y, glowSize * 0.6, 0, Math.PI * 2);
+                this.ctx.arc(x, y, glowSize * 0.4, 0, Math.PI * 2);
                 this.ctx.fill();
                 
-                // Draw diamond symbol (♦) in center
-                this.ctx.fillStyle = '#8B0000'; // Dark red
-                this.ctx.font = `${glowSize * 1.2}px monospace`;
+                // Draw energy symbol in center
+                this.ctx.fillStyle = `hsla(${orb.hue}, 100%, 30%, 0.8)`;
+                this.ctx.font = `${glowSize * 0.8}px monospace`;
                 this.ctx.textAlign = 'center';
                 this.ctx.textBaseline = 'middle';
-                this.ctx.fillText('♦', x, y);
+                this.ctx.fillText('⚡', x, y);
                 
                 // Draw sparkle effect
                 for (let i = 0; i < 6; i++) {
@@ -1616,10 +1625,10 @@ class Game {
         
         // Reset AI snakes
         this.aiSnakes = [];
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 15; i++) {
             const x = Math.random() * this.worldWidth;
             const y = Math.random() * this.worldHeight;
-            const colors = ['#f44336', '#2196F3', '#FF9800', '#9C27B0', '#00BCD4'];
+            const colors = ['#ff0080', '#00ff41', '#00ffff', '#ff8000', '#8000ff', '#ffff00', '#ff4444', '#44ff44', '#4444ff'];
             const color = colors[Math.floor(Math.random() * colors.length)];
             this.aiSnakes.push(new Snake(x, y, color, false));
         }
