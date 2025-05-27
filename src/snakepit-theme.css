@@ -1,0 +1,471 @@
+/* SnakePit - Dark Retro Gaming Theme */
+
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+:root {
+  /* Neon Color Palette */
+  --neon-green: #00ff41;
+  --neon-cyan: #00ffff;
+  --neon-pink: #ff0080;
+  --neon-purple: #8000ff;
+  --neon-orange: #ff8000;
+  --neon-yellow: #ffff00;
+  
+  /* Dark Theme Colors */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #2a2a2a;
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  
+  /* Glow Effects */
+  --glow-small: 0 0 5px;
+  --glow-medium: 0 0 10px;
+  --glow-large: 0 0 20px;
+  --glow-xl: 0 0 30px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Share Tech Mono', monospace;
+  overflow: hidden;
+  background-image: 
+    radial-gradient(circle at 20% 80%, rgba(0, 255, 65, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255, 0, 128, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, rgba(0, 255, 255, 0.05) 0%, transparent 50%);
+}
+
+/* Pixelated/Retro Effects */
+.pixelated {
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Neon Text Effects */
+.neon-text {
+  text-shadow: 
+    var(--glow-small) currentColor,
+    var(--glow-medium) currentColor,
+    var(--glow-large) currentColor;
+}
+
+.neon-green { color: var(--neon-green); }
+.neon-cyan { color: var(--neon-cyan); }
+.neon-pink { color: var(--neon-pink); }
+.neon-purple { color: var(--neon-purple); }
+.neon-orange { color: var(--neon-orange); }
+.neon-yellow { color: var(--neon-yellow); }
+
+/* Main App Container */
+.snakepit-app {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* SnakePit Logo/Title */
+.snakepit-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 4rem;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 2rem;
+  background: linear-gradient(45deg, var(--neon-green), var(--neon-cyan), var(--neon-pink));
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: neon-pulse 2s ease-in-out infinite alternate,
+             gradient-shift 3s ease-in-out infinite;
+  text-shadow: 
+    0 0 10px var(--neon-green),
+    0 0 20px var(--neon-green),
+    0 0 30px var(--neon-green);
+}
+
+@keyframes neon-pulse {
+  from {
+    text-shadow: 
+      0 0 10px var(--neon-green),
+      0 0 20px var(--neon-green),
+      0 0 30px var(--neon-green);
+  }
+  to {
+    text-shadow: 
+      0 0 5px var(--neon-green),
+      0 0 15px var(--neon-green),
+      0 0 25px var(--neon-green),
+      0 0 35px var(--neon-green);
+  }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Game Mode Selection */
+.game-mode-select {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.mode-selection-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--neon-cyan);
+  text-shadow: var(--glow-medium) var(--neon-cyan);
+  margin-bottom: 1rem;
+}
+
+.mode-buttons {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.mode-button {
+  background: var(--bg-secondary);
+  border: 2px solid var(--neon-green);
+  border-radius: 10px;
+  padding: 2rem;
+  min-width: 300px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.mode-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.mode-button:hover::before {
+  left: 100%;
+}
+
+.mode-button:hover {
+  border-color: var(--neon-cyan);
+  box-shadow: 
+    var(--glow-medium) var(--neon-cyan),
+    inset var(--glow-small) var(--neon-cyan);
+  transform: translateY(-5px);
+}
+
+.mode-button h3 {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.5rem;
+  color: var(--neon-green);
+  margin: 0 0 1rem 0;
+  text-shadow: var(--glow-small) var(--neon-green);
+}
+
+.mode-button:hover h3 {
+  color: var(--neon-cyan);
+  text-shadow: var(--glow-small) var(--neon-cyan);
+}
+
+.mode-button p {
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Game Container */
+.game-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  position: relative;
+}
+
+/* Game UI - Overlay on canvas */
+.game-ui {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: rgba(10, 10, 15, 0.9);
+  border: 2px solid var(--neon-green);
+  border-radius: 10px;
+  box-shadow: var(--glow-small) var(--neon-green);
+  z-index: 10;
+}
+
+.ui-stats {
+  display: flex;
+  gap: 2rem;
+}
+
+.stat-item {
+  font-family: 'Orbitron', monospace;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 0.5rem 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--neon-green);
+  border-radius: 5px;
+  box-shadow: inset var(--glow-small) var(--neon-green);
+}
+
+.stat-score { color: var(--neon-green); }
+.stat-length { color: var(--neon-cyan); }
+.stat-boost { color: var(--neon-orange); }
+.stat-weapon { color: var(--neon-pink); }
+.stat-cooldown { color: var(--neon-purple); }
+
+/* Game Canvas */
+.game-canvas {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.main-canvas {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-primary);
+  border: 2px solid var(--neon-green);
+  box-shadow: inset var(--glow-small) var(--neon-green);
+}
+
+/* Minimap */
+.minimap-container {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 200px;
+  height: 150px;
+  background: var(--bg-secondary);
+  border: 2px solid var(--neon-cyan);
+  border-radius: 5px;
+  box-shadow: var(--glow-small) var(--neon-cyan);
+}
+
+.minimap-canvas {
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+}
+
+/* Instructions */
+.instructions {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: var(--bg-secondary);
+  border: 2px solid var(--neon-purple);
+  border-radius: 5px;
+  padding: 1rem;
+  max-width: 300px;
+  box-shadow: var(--glow-small) var(--neon-purple);
+}
+
+.instructions h3 {
+  font-family: 'Orbitron', monospace;
+  color: var(--neon-purple);
+  margin: 0 0 0.5rem 0;
+  text-shadow: var(--glow-small) var(--neon-purple);
+}
+
+.instructions p {
+  margin: 0.25rem 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+/* Game Over Screen */
+.game-over {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.game-over-content {
+  background: var(--bg-secondary);
+  border: 3px solid var(--neon-pink);
+  border-radius: 15px;
+  padding: 3rem;
+  text-align: center;
+  box-shadow: var(--glow-large) var(--neon-pink);
+  animation: game-over-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes game-over-pulse {
+  from {
+    box-shadow: var(--glow-large) var(--neon-pink);
+  }
+  to {
+    box-shadow: var(--glow-xl) var(--neon-pink);
+  }
+}
+
+.game-over h2 {
+  font-family: 'Orbitron', monospace;
+  font-size: 3rem;
+  color: var(--neon-pink);
+  margin: 0 0 1rem 0;
+  text-shadow: var(--glow-medium) var(--neon-pink);
+}
+
+.final-stats {
+  margin: 2rem 0;
+}
+
+.final-stat {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.5rem;
+  margin: 0.5rem 0;
+  color: var(--neon-cyan);
+  text-shadow: var(--glow-small) var(--neon-cyan);
+}
+
+.game-over-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.retro-button {
+  font-family: 'Orbitron', monospace;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 1rem 2rem;
+  background: var(--bg-tertiary);
+  border: 2px solid var(--neon-green);
+  border-radius: 5px;
+  color: var(--neon-green);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.retro-button:hover {
+  background: var(--neon-green);
+  color: var(--bg-primary);
+  box-shadow: var(--glow-medium) var(--neon-green);
+  transform: translateY(-2px);
+}
+
+.retro-button.secondary {
+  border-color: var(--neon-orange);
+  color: var(--neon-orange);
+}
+
+.retro-button.secondary:hover {
+  background: var(--neon-orange);
+  box-shadow: var(--glow-medium) var(--neon-orange);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .snakepit-title {
+    font-size: 2.5rem;
+  }
+  
+  .mode-selection-title {
+    font-size: 2rem;
+  }
+  
+  .mode-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .mode-button {
+    min-width: 280px;
+  }
+  
+  .ui-stats {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  
+  .minimap-container {
+    width: 150px;
+    height: 100px;
+  }
+  
+  .instructions {
+    max-width: 250px;
+  }
+}
+
+/* Retro Scanlines Effect */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    transparent 50%, 
+    rgba(0, 255, 65, 0.03) 50%
+  );
+  background-size: 100% 4px;
+  animation: scanlines 0.1s linear infinite;
+}
+
+@keyframes scanlines {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(4px); }
+}
+
+/* Cash/Coin Graphics - We'll add these as CSS sprites or icons */
+.cash-icon::before {
+  content: '💰';
+  font-size: 1.2em;
+  margin-right: 0.5rem;
+  filter: hue-rotate(120deg) brightness(1.5);
+}
+
+.coin-icon::before {
+  content: '🪙';
+  font-size: 1.2em;
+  margin-right: 0.5rem;
+  filter: hue-rotate(60deg) brightness(1.5);
+}
