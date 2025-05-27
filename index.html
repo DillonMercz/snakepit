@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slither.io Clone</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="gameModeSelect" class="menu-screen">
+        <h1>Select Game Mode</h1>
+        <div class="mode-buttons">
+            <button id="classicMode" class="mode-btn">
+                <h2>Classic Mode</h2>
+                <p>Traditional snake gameplay with food and glow orbs</p>
+            </button>
+            <button id="warfareMode" class="mode-btn">
+                <h2>Warfare Mode</h2>
+                <p>Combat mode with weapons and shooting mechanics</p>
+            </button>
+        </div>
+    </div>
+
+    <div id="gameContainer" class="hidden">
+        <div id="ui">
+            <div id="score">Score: 0</div>
+            <div id="length">Length: 3</div>
+            <div id="boost">Boost: 100%</div>
+            <div id="weapon" class="hidden">Weapon: None</div>
+            <div id="cooldown" class="hidden">Cooldown: Ready</div>
+        </div>
+        
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="minimapContainer">
+            <canvas id="minimap"></canvas>
+        </div>
+        
+        <div id="instructions">
+            <h3>Controls:</h3>
+            <p>Mouse: Move snake</p>
+            <p>Left Click / Space: Boost</p>
+            <p>Eat food to grow!</p>
+            <p>Catch glowing orbs for bonus points!</p>
+            <p>Avoid hitting other snakes!</p>
+            <div id="warfareInstructions" class="hidden">
+                <p>Right Click: Shoot weapon</p>
+                <p>Collect weapon bubbles to attack!</p>
+                <p>Headshots eliminate snakes instantly</p>
+                <p>Body shots reduce snake length</p>
+            </div>
+        </div>
+        
+        <div id="gameOver" class="hidden">
+            <h2>Game Over!</h2>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <p>Final Length: <span id="finalLength">0</span></p>
+            <button id="restartBtn">Play Again</button>
+        </div>
+    </div>
+    
+    <script src="game_simple.js"></script>
+</body>
+</html>
