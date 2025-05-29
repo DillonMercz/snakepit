@@ -2553,9 +2553,16 @@ class Game {
 
     convertSnakeToCoins(snake) {
         // Get the snake's actual cash balance at the moment of death
-        const totalCashValue = snake.isPlayer ?
-            this.cashBalance :
-            (snake.collectedCash || 0);
+        let totalCashValue;
+        if (snake.isPlayer) {
+            totalCashValue = this.cashBalance;
+        } else if (this.isMultiplayer) {
+            // Remote players store cash in cashBalance property
+            totalCashValue = snake.cashBalance || 0;
+        } else {
+            // AI snakes store cash in collectedCash property
+            totalCashValue = snake.collectedCash || 0;
+        }
 
         // Reduce snake's cash balance to zero (they lost everything)
         if (snake.isPlayer) {
@@ -2564,6 +2571,8 @@ class Game {
             if (this.gameMode === 'warfare') {
                 this.score = this.cashBalance;
             }
+        } else if (this.isMultiplayer) {
+            snake.cashBalance = 0; // Remote player loses all cash on death
         } else {
             snake.collectedCash = 0; // AI loses all cash on death
         }
@@ -2572,11 +2581,12 @@ class Game {
         const totalCoins = snake.segments.length * 4; // 4 coins per segment for good distribution
         const valuePerCoin = Math.max(1, Math.floor(totalCashValue / totalCoins)); // Minimum $1 per coin
 
+        const createdCoins = [];
         snake.segments.forEach((segment) => {
             // Create multiple coins per segment for better collection
             const coinsPerSegment = 4; // Consistent number of coins per segment
             for (let i = 0; i < coinsPerSegment; i++) {
-                this.coins.push({
+                const coin = {
                     x: segment.x + (Math.random() - 0.5) * 40,
                     y: segment.y + (Math.random() - 0.5) * 40,
                     value: valuePerCoin,
@@ -2585,10 +2595,35 @@ class Game {
                     collected: false,
                     bobPhase: Math.random() * Math.PI * 2,
                     sparklePhase: Math.random() * Math.PI * 2,
-                    creationTime: Date.now()
-                });
+                    creationTime: Date.now(),
+                    id: `${segment.x}_${segment.y}_${Date.now()}_${i}` // Unique ID for multiplayer sync
+                };
+                this.coins.push(coin);
+                createdCoins.push(coin);
             }
         });
+
+        // Broadcast death event and coin creation in multiplayer
+        if (this.isMultiplayer && !snake.isPlayer && this.multiplayerService) {
+            this.multiplayerService.broadcastGameEvent({
+                type: 'player_death',
+                playerId: snake.id || 'unknown',
+                data: {
+                    playerId: snake.id || 'unknown',
+                    username: snake.username || 'Unknown Player',
+                    totalCashValue: totalCashValue,
+                    coins: createdCoins.map(coin => ({
+                        id: coin.id,
+                        x: coin.x,
+                        y: coin.y,
+                        value: coin.value,
+                        size: coin.size,
+                        creationTime: coin.creationTime
+                    }))
+                },
+                timestamp: Date.now()
+            });
+        }
 
         console.log(`Snake died with $${totalCashValue} cash, created ${totalCoins} coins worth $${valuePerCoin} each (total: $${totalCoins * valuePerCoin})`);
     }
@@ -2673,11 +2708,16 @@ class Game {
                         }
 
                         // Broadcast coin collection in multiplayer
-                        if (this.isMultiplayer) {
-                            this.broadcastGameEvent('coin_collected', {
-                                coinId: coin.id || `${coin.x}_${coin.y}_${coin.creationTime}`,
-                                value: coin.value,
-                                playerId: this.playerId
+                        if (this.isMultiplayer && this.multiplayerService) {
+                            this.multiplayerService.broadcastGameEvent({
+                                type: 'coin_collected',
+                                playerId: this.playerId || 'unknown',
+                                data: {
+                                    coinId: coin.id || `${coin.x}_${coin.y}_${coin.creationTime}`,
+                                    value: coin.value,
+                                    playerId: this.playerId
+                                },
+                                timestamp: Date.now()
                             });
                         }
                     } else {

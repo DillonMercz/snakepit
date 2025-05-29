@@ -331,11 +331,30 @@ export class MultiplayerService {
         break
       case 'player_death':
         console.log(`💀 Player died:`, event.data)
-        // Mark remote player as dead
+        // Mark remote player as dead and create their coins
         if (this.gameInstance) {
           const deadPlayer = this.gameInstance.remotePlayers.find((p: any) => p.id === event.playerId)
           if (deadPlayer) {
             deadPlayer.alive = false
+          }
+
+          // Create coins from the death event data
+          if (event.data.coins && Array.isArray(event.data.coins)) {
+            event.data.coins.forEach((coinData: any) => {
+              this.gameInstance.coins.push({
+                id: coinData.id,
+                x: coinData.x,
+                y: coinData.y,
+                value: coinData.value,
+                size: coinData.size,
+                color: '#FFD700',
+                collected: false,
+                bobPhase: Math.random() * Math.PI * 2,
+                sparklePhase: Math.random() * Math.PI * 2,
+                creationTime: coinData.creationTime
+              })
+            })
+            console.log(`💰 Created ${event.data.coins.length} coins from ${event.data.username}'s death (total value: $${event.data.totalCashValue})`)
           }
         }
         break
