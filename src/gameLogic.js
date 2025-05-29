@@ -2328,7 +2328,10 @@ class Game {
 
         // Decision making frequency (AI thinks every 100-300ms based on personality)
         if (now - snake.lastDecisionTime < snake.reactionTime) {
-            snake.update(snake.shouldBoost);
+            // Remote players don't have update method
+            if (typeof snake.update === 'function') {
+                snake.update(snake.shouldBoost);
+            }
             return;
         }
         snake.lastDecisionTime = now;
@@ -2355,9 +2358,12 @@ class Game {
         // Remote players don't have isInvincible method
         const isInvincible = (typeof snake.isInvincible === 'function') ? snake.isInvincible() : (snake.isInvincible || false);
         if (action.shoot && action.shootTarget && !isInvincible) {
-            const projectile = snake.shoot(action.shootTarget.x, action.shootTarget.y);
-            if (projectile) {
-                this.projectiles.push(projectile);
+            // Remote players don't have shoot method
+            if (typeof snake.shoot === 'function') {
+                const projectile = snake.shoot(action.shootTarget.x, action.shootTarget.y);
+                if (projectile) {
+                    this.projectiles.push(projectile);
+                }
             }
         }
 
@@ -2368,7 +2374,10 @@ class Game {
 
         // Update snake with boost decision
         snake.shouldBoost = action.boost;
-        snake.update(action.boost);
+        // Remote players don't have update method
+        if (typeof snake.update === 'function') {
+            snake.update(action.boost);
+        }
     }
 
     // AI Situation Assessment
@@ -3128,7 +3137,10 @@ class Game {
                 if (snake === otherSnake || !snake.alive || !otherSnake.alive) return;
 
                 // Check if either snake is invincible
-                if (snake.isInvincible() || otherSnake.isInvincible()) {
+                // Remote players don't have isInvincible method
+                const snakeInvincible = (typeof snake.isInvincible === 'function') ? snake.isInvincible() : (snake.isInvincible || false);
+                const otherSnakeInvincible = (typeof otherSnake.isInvincible === 'function') ? otherSnake.isInvincible() : (otherSnake.isInvincible || false);
+                if (snakeInvincible || otherSnakeInvincible) {
                     return; // Skip collision for invincible snakes
                 }
 
@@ -3189,7 +3201,10 @@ class Game {
                                     this.updateSnakeCashValue(newSnake);
 
                                     // Activate spawn invincibility for respawned AI snake
-                                    newSnake.activateSpawnInvincibility(newSnake.wager);
+                                    // Remote players don't have activateSpawnInvincibility method
+                                    if (typeof newSnake.activateSpawnInvincibility === 'function') {
+                                        newSnake.activateSpawnInvincibility(newSnake.wager);
+                                    }
 
                                     const index = this.aiSnakes.indexOf(snake);
                                     if (index !== -1) {
@@ -4477,7 +4492,11 @@ class Game {
         this.ctx.fill();
 
         // Draw battering ram comet effect if active
-        if (snake.hasActivePowerup('battering_ram')) {
+        // Remote players don't have hasActivePowerup method
+        const hasBatteringRam = (typeof snake.hasActivePowerup === 'function') ?
+            snake.hasActivePowerup('battering_ram') :
+            (snake.activePowerups && snake.activePowerups.some(p => p.type === 'battering_ram'));
+        if (hasBatteringRam) {
             this.drawBatteringRamEffect(snake, x, y, headSize);
         }
 
