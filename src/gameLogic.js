@@ -2130,7 +2130,9 @@ class Game {
                         }
 
                         // Check if snake is invincible
-                        if (snake.isInvincible()) {
+                        // Remote players don't have isInvincible method
+                        const isInvincible = (typeof snake.isInvincible === 'function') ? snake.isInvincible() : (snake.isInvincible || false);
+                        if (isInvincible) {
                             console.log('Projectile hit invincible snake, no damage dealt');
                             continue; // Skip damage for invincible snakes
                         }
@@ -2350,7 +2352,9 @@ class Game {
         }
 
         // Handle shooting (only if not invincible)
-        if (action.shoot && action.shootTarget && !snake.isInvincible()) {
+        // Remote players don't have isInvincible method
+        const isInvincible = (typeof snake.isInvincible === 'function') ? snake.isInvincible() : (snake.isInvincible || false);
+        if (action.shoot && action.shootTarget && !isInvincible) {
             const projectile = snake.shoot(action.shootTarget.x, action.shootTarget.y);
             if (projectile) {
                 this.projectiles.push(projectile);
@@ -4203,8 +4207,9 @@ class Game {
         }
 
         // Check if snake is invincible and should blink
-        const isInvincible = snake.isInvincible();
-        const shouldBlink = isInvincible && Math.sin(snake.blinkPhase) < 0;
+        // Remote players don't have isInvincible method, so check if it exists
+        const isInvincible = (typeof snake.isInvincible === 'function') ? snake.isInvincible() : (snake.isInvincible || false);
+        const shouldBlink = isInvincible && Math.sin(snake.blinkPhase || 0) < 0;
 
         // Skip drawing if blinking (creates blinking effect)
         if (shouldBlink) {
@@ -4723,7 +4728,8 @@ class Game {
 
     drawHelmet(snake, headX, headY, headSize) {
         const time = Date.now() * 0.001;
-        const helmetHealth = snake.getHelmetHealth();
+        // Remote players don't have getHelmetHealth method
+        const helmetHealth = (typeof snake.getHelmetHealth === 'function') ? snake.getHelmetHealth() : 500;
         const maxHelmetHealth = 500;
         const healthRatio = helmetHealth / maxHelmetHealth;
 
@@ -4974,7 +4980,9 @@ class Game {
 
     drawActivePowerupEffects(snake, headX, headY, headSize) {
         // Draw effects for each active powerup
-        snake.activePowerups.forEach(powerup => {
+        // Remote players don't have activePowerups array
+        const activePowerups = snake.activePowerups || [];
+        activePowerups.forEach(powerup => {
             switch (powerup.type) {
                 case 'helmet':
                     this.drawHelmet(snake, headX, headY, headSize);
@@ -5156,15 +5164,17 @@ class Game {
     }
 
     drawPowerupStatusIndicators(snake, headX, headY, headSize) {
-        if (snake.activePowerups.length === 0) return;
+        // Remote players don't have activePowerups array
+        const activePowerups = snake.activePowerups || [];
+        if (activePowerups.length === 0) return;
 
         const time = Date.now() * 0.001;
         const indicatorY = headY - headSize * 2.5;
-        let indicatorX = headX - (snake.activePowerups.length * 15) / 2;
+        let indicatorX = headX - (activePowerups.length * 15) / 2;
 
         this.ctx.save();
 
-        snake.activePowerups.forEach((powerup, index) => {
+        activePowerups.forEach((powerup, index) => {
             const timeRemaining = powerup.expirationTime - Date.now();
             const totalDuration = powerup.duration;
             const timeRatio = timeRemaining / totalDuration;
