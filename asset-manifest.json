@@ -1,0 +1,21 @@
+{
+  "files": {
+    "main.css": "/snakepit/static/css/main.30bedf54.css",
+    "main.js": "/snakepit/static/js/main.ab450c20.js",
+    "static/js/244.03449e78.chunk.js": "/snakepit/static/js/244.03449e78.chunk.js",
+    "static/js/952.72775c9d.chunk.js": "/snakepit/static/js/952.72775c9d.chunk.js",
+    "static/js/68.489f2833.chunk.js": "/snakepit/static/js/68.489f2833.chunk.js",
+    "static/js/453.ef28c531.chunk.js": "/snakepit/static/js/453.ef28c531.chunk.js",
+    "index.html": "/snakepit/index.html",
+    "main.30bedf54.css.map": "/snakepit/static/css/main.30bedf54.css.map",
+    "main.ab450c20.js.map": "/snakepit/static/js/main.ab450c20.js.map",
+    "244.03449e78.chunk.js.map": "/snakepit/static/js/244.03449e78.chunk.js.map",
+    "952.72775c9d.chunk.js.map": "/snakepit/static/js/952.72775c9d.chunk.js.map",
+    "68.489f2833.chunk.js.map": "/snakepit/static/js/68.489f2833.chunk.js.map",
+    "453.ef28c531.chunk.js.map": "/snakepit/static/js/453.ef28c531.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.30bedf54.css",
+    "static/js/main.ab450c20.js"
+  ]
+}
