@@ -3084,20 +3084,28 @@ class Game {
                         }
                         this.updateGameState();
                     } else {
-                        // AI snakes also get benefits from food (same as player)
+                        // AI snakes or remote players also get benefits from food (same as player)
                         // Food gives 5% mass (growth) and 1% speed boost in both modes
                         const coinMassValue = 10; // What coins give for mass/length
                         const foodMassValue = coinMassValue * 0.05; // 5% of coin mass value
 
                         // Add mass/growth (no cap on snake growth)
-                        snake.growthQueue += foodMassValue;
+                        if (snake.growthQueue !== undefined) {
+                            snake.growthQueue += foodMassValue;
+                        }
 
                         // Add 1% speed boost (remove cap when collecting food)
-                        snake.addSpeedBoost(1);
+                        // Remote players don't have addSpeedBoost method
+                        if (typeof snake.addSpeedBoost === 'function') {
+                            snake.addSpeedBoost(1);
+                        } else if (this.isMultiplayer) {
+                            // For remote players, just update speedMultiplier directly
+                            snake.speedMultiplier = (snake.speedMultiplier || 1.0) + 0.01;
+                        }
 
                         // Food adds to boost percentage and removes cap
                         snake.boostCapRemoved = true; // Remove boost cap when collecting food
-                        snake.boost += 5; // Add 5% boost (no cap when collecting food)
+                        snake.boost = Math.min((snake.boost || 0) + 5, 200); // Add 5% boost (cap at 200% for remote players)
                     }
                 }
             }
