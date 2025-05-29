@@ -31,7 +31,7 @@ export interface GameRoom {
 }
 
 export interface GameEvent {
-  type: 'player_move' | 'player_death' | 'food_collected' | 'coin_collected' | 'weapon_fired' | 'player_joined' | 'player_left'
+  type: 'player_move' | 'player_death' | 'food_collected' | 'coin_collected' | 'weapon_fired' | 'player_joined' | 'player_left' | 'player_shoot'
   playerId: string
   data: any
   timestamp: number
@@ -331,6 +331,30 @@ export class MultiplayerService {
         break
       case 'player_death':
         console.log(`💀 Player died:`, event.data)
+        // Mark remote player as dead
+        if (this.gameInstance) {
+          const deadPlayer = this.gameInstance.remotePlayers.find((p: any) => p.id === event.playerId)
+          if (deadPlayer) {
+            deadPlayer.alive = false
+          }
+        }
+        break
+      case 'player_shoot':
+        console.log(`🔫 Player shot:`, event.data)
+        // Handle remote player shooting
+        if (this.gameInstance && event.data.projectile) {
+          this.gameInstance.projectiles.push(event.data.projectile)
+        }
+        break
+      case 'coin_collected':
+        console.log(`💰 Coin collected:`, event.data)
+        // Remove coin from game world
+        if (this.gameInstance && event.data.coinId) {
+          const coin = this.gameInstance.coins.find((c: any) => c.id === event.data.coinId)
+          if (coin) {
+            coin.collected = true
+          }
+        }
         break
       // Add more event handlers as needed
     }

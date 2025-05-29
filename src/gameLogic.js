@@ -2121,8 +2121,10 @@ class Game {
                         return false;
                     }
 
-                    // Check collisions with snakes
-                    const allSnakes = [this.player, ...this.aiSnakes].filter(s => s.alive);
+                    // Check collisions with snakes (use remote players in multiplayer)
+                    const allSnakes = this.isMultiplayer ?
+                        [this.player, ...this.remotePlayers].filter(s => s.alive) :
+                        [this.player, ...this.aiSnakes].filter(s => s.alive);
                     for (const snake of allSnakes) {
                         // Skip collision with projectile owner (no friendly fire)
                         if (snake === projectile.owner) {
@@ -2640,8 +2642,10 @@ class Game {
         const now = Date.now();
         this.coins = this.coins.filter(coin => !coin.collected && (now - coin.creationTime) < 30000);
 
-        // Check coin collisions with all snakes
-        const allSnakes = [this.player, ...this.aiSnakes].filter(s => s.alive);
+        // Check coin collisions with all snakes (use remote players in multiplayer)
+        const allSnakes = this.isMultiplayer ?
+            [this.player, ...this.remotePlayers].filter(s => s.alive) :
+            [this.player, ...this.aiSnakes].filter(s => s.alive);
 
         this.coins.forEach(coin => {
             if (coin.collected) return;
@@ -2661,9 +2665,24 @@ class Game {
                         if (this.gameMode === 'warfare') {
                             this.score = this.cashBalance;
                         }
+
+                        // Broadcast coin collection in multiplayer
+                        if (this.isMultiplayer) {
+                            this.broadcastGameEvent('coin_collected', {
+                                coinId: coin.id || `${coin.x}_${coin.y}_${coin.creationTime}`,
+                                value: coin.value,
+                                playerId: this.playerId
+                            });
+                        }
                     } else {
-                        // AI snakes collect cash too (for future features)
-                        snake.collectedCash = (snake.collectedCash || 0) + coin.value;
+                        // AI snakes or remote players collect cash too
+                        if (this.isMultiplayer) {
+                            // Remote players handle their own cash
+                            snake.cashBalance = (snake.cashBalance || 0) + coin.value;
+                        } else {
+                            // AI snakes collect cash
+                            snake.collectedCash = (snake.collectedCash || 0) + coin.value;
+                        }
                     }
                 }
             });
@@ -3014,7 +3033,10 @@ class Game {
     }
 
     checkCollisions() {
-        const allSnakes = [this.player, ...this.aiSnakes].filter(s => s.alive);
+        // Use remote players in multiplayer, AI snakes otherwise
+        const allSnakes = this.isMultiplayer ?
+            [this.player, ...this.remotePlayers].filter(s => s.alive) :
+            [this.player, ...this.aiSnakes].filter(s => s.alive);
 
         // Check food collisions with vacuum effect
         allSnakes.forEach(snake => {
@@ -3131,9 +3153,13 @@ class Game {
             }
         });
 
-        // Check snake vs snake collisions
-        allSnakes.forEach(snake => {
-            allSnakes.forEach(otherSnake => {
+        // Check snake vs snake collisions (use remote players in multiplayer)
+        const allSnakesForCollision = this.isMultiplayer ?
+            [this.player, ...this.remotePlayers].filter(s => s.alive) :
+            [this.player, ...this.aiSnakes].filter(s => s.alive);
+
+        allSnakesForCollision.forEach(snake => {
+            allSnakesForCollision.forEach(otherSnake => {
                 if (snake === otherSnake || !snake.alive || !otherSnake.alive) return;
 
                 // Check if either snake is invincible
@@ -3285,8 +3311,10 @@ class Game {
         let targetX, targetY;
 
         if (this.spectating) {
-            // Follow spectated snake
-            const aliveSnakes = this.aiSnakes.filter(snake => snake.alive);
+            // Follow spectated snake (use remote players in multiplayer)
+            const aliveSnakes = this.isMultiplayer ?
+                this.remotePlayers.filter(snake => snake.alive) :
+                this.aiSnakes.filter(snake => snake.alive);
             if (aliveSnakes.length > 0) {
                 const spectatedSnake = aliveSnakes[this.spectateTarget % aliveSnakes.length];
                 targetX = spectatedSnake.x - this.canvas.width / 2;
@@ -3314,16 +3342,18 @@ class Game {
     }
 
     updateKing() {
-        // Find the snake with the highest balance
-        const allSnakes = [this.player, ...this.aiSnakes].filter(snake => snake.alive);
+        // Find the snake with the highest balance (use remote players in multiplayer)
+        const allSnakes = this.isMultiplayer ?
+            [this.player, ...this.remotePlayers].filter(snake => snake.alive) :
+            [this.player, ...this.aiSnakes].filter(snake => snake.alive);
 
         if (allSnakes.length === 0) return;
 
         let newKing = allSnakes[0];
-        let highestBalance = this.player.isPlayer ? this.cashBalance : (allSnakes[0].collectedCash || 0);
+        let highestBalance = this.getSnakeBalance(allSnakes[0]);
 
         allSnakes.forEach(snake => {
-            const balance = snake.isPlayer ? this.cashBalance : (snake.collectedCash || 0);
+            const balance = this.getSnakeBalance(snake);
             if (balance > highestBalance) {
                 highestBalance = balance;
                 newKing = snake;
@@ -3333,7 +3363,20 @@ class Game {
         // Only update if king changed or if there's no current king
         if (this.currentKing !== newKing) {
             this.currentKing = newKing;
-            console.log(`New king: ${newKing.isPlayer ? 'Player' : 'AI'} with balance $${highestBalance}`);
+            const kingType = newKing.isPlayer ? 'Player' : (this.isMultiplayer ? 'Remote Player' : 'AI');
+            console.log(`New king: ${kingType} with balance $${highestBalance}`);
+        }
+    }
+
+    getSnakeBalance(snake) {
+        if (snake.isPlayer) {
+            return this.cashBalance;
+        } else if (this.isMultiplayer) {
+            // Remote players have cashBalance property
+            return snake.cashBalance || 0;
+        } else {
+            // AI snakes use collectedCash
+            return snake.collectedCash || 0;
         }
     }
 
