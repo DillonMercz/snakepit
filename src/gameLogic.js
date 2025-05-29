@@ -2146,7 +2146,9 @@ class Game {
 
                         if (headDist < snake.size) {
                             // Check for helmet protection first
-                            const helmetDamageResult = snake.damageHelmet(projectile.damage * 25);
+                            // Remote players don't have damageHelmet method
+                            const helmetDamageResult = (typeof snake.damageHelmet === 'function') ?
+                                snake.damageHelmet(projectile.damage * 25) : null;
 
                             if (helmetDamageResult !== null) {
                                 // Helmet absorbed the damage
@@ -2158,7 +2160,9 @@ class Game {
                             }
 
                             // No helmet or helmet destroyed, check other head protection
-                            const headProtection = snake.getHeadProtection();
+                            // Remote players don't have getHeadProtection method
+                            const headProtection = (typeof snake.getHeadProtection === 'function') ?
+                                snake.getHeadProtection() : 0;
                             const survives = Math.random() < headProtection;
 
                             if (survives) {
@@ -2200,7 +2204,9 @@ class Game {
 
                             if (dist < snake.size) {
                                 // Apply damage reduction from defensive powerups
-                                const damageReduction = snake.getDamageReduction();
+                                // Remote players don't have getDamageReduction method
+                                const damageReduction = (typeof snake.getDamageReduction === 'function') ?
+                                    snake.getDamageReduction() : 0;
                                 const baseDamage = projectile.damage * 25; // Scale damage for health system
                                 const finalDamage = baseDamage * (1 - damageReduction);
 
@@ -3185,8 +3191,10 @@ class Game {
                     const dist = Math.hypot(segment.x - snake.x, segment.y - snake.y);
                     if (dist < snake.size + otherSnake.size - 2) {
                         // Check for battering ram collision damage (only if attacker is not invincible)
-                        const batteringRamDamage = snake.getBoostDamage();
-                        const isRamming = snake.boost < snake.maxBoost && batteringRamDamage > 0 && !snake.isInvincible(); // Snake is boosting and has battering ram and not invincible
+                        // Remote players don't have getBoostDamage method
+                        const batteringRamDamage = (typeof snake.getBoostDamage === 'function') ? snake.getBoostDamage() : 0;
+                        const snakeInvincible = (typeof snake.isInvincible === 'function') ? snake.isInvincible() : (snake.isInvincible || false);
+                        const isRamming = snake.boost < (snake.maxBoost || 100) && batteringRamDamage > 0 && !snakeInvincible; // Snake is boosting and has battering ram and not invincible
 
                         if (isRamming) {
                             // Apply battering ram damage to the segment
