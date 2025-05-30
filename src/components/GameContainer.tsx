@@ -13,6 +13,12 @@ import { GameStatsService } from '../services/GameStatsService';
 interface GameContainerProps {
   gameMode: GameMode;
   onBackToMenu: () => void;
+  // Network related props
+  networkManager?: any;
+  isConnected?: boolean;
+  playerId?: string | null;
+  roomId?: string | null;
+  connectionError?: string | null;
 }
 
 export interface GameState {
@@ -39,7 +45,15 @@ export interface GameState {
   cashoutAmount?: number;
 }
 
-const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu }) => {
+const GameContainer: React.FC<GameContainerProps> = ({ 
+  gameMode, 
+  onBackToMenu,
+  networkManager,
+  isConnected,
+  playerId,
+  roomId,
+  connectionError
+}) => {
   const { user, userProfile } = useAuth();
 
   const [gameState, setGameState] = useState<GameState>({
@@ -140,27 +154,80 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu })
   return (
     <div className="game-container scanlines">
       <div className="game-canvas">
-        <GameCanvas
-          gameMode={gameMode}
-          gameInstanceRef={gameInstanceRef}
-          onGameStateUpdate={setGameState}
-        />
+        {/* Conditional rendering for PvP modes based on network state */}
+        {(gameMode === 'classic_pvp' || gameMode === 'warfare_pvp') ? (
+          <>
+            {connectionError && (
+              <div className="connection-status error-message">
+                <p>Connection Error: {connectionError}</p>
+                <button onClick={onBackToMenu} className="menu-button">Back to Menu</button>
+              </div>
+            )}
+            {!isConnected && !connectionError && (
+              <div className="connection-status">
+                <p>Connecting to server...</p>
+                {/* <button onClick={onBackToMenu} className="menu-button">Cancel</button> */}
+              </div>
+            )}
+            {isConnected && !connectionError && (
+              <GameCanvas
+                gameMode={gameMode}
+                gameInstanceRef={gameInstanceRef}
+                onGameStateUpdate={setGameState}
+                networkManager={networkManager} 
+                localPlayerId={playerId}      
+              />
+            )}
+          </>
+        ) : (
+          // Original rendering for non-PvP modes
+          <GameCanvas
+            gameMode={gameMode}
+            gameInstanceRef={gameInstanceRef}
+            onGameStateUpdate={setGameState}
+          />
+        )}
 
-        {/* Overlay UI elements on top of the game canvas */}
-        <GameUI
-          gameState={gameState}
-          gameMode={gameMode}
-          onCashOut={handleCashOut}
-        />
-
-        <Minimap gameInstanceRef={gameInstanceRef} />
-
-        <Instructions gameMode={gameMode} />
-
-        <ControllerStatus gameInstanceRef={gameInstanceRef} />
+        {/* Overlay UI elements, rendered if GameCanvas is supposed to be active */}
+        {((gameMode === 'classic_pvp' || gameMode === 'warfare_pvp') ? (isConnected && !connectionError) : true) && (
+          <>
+            <GameUI
+              gameState={gameState}
+              gameMode={gameMode}
+              onCashOut={handleCashOut}
+            />
+            <Minimap gameInstanceRef={gameInstanceRef} />
+            <Instructions gameMode={gameMode} />
+            <ControllerStatus gameInstanceRef={gameInstanceRef} />
+          </>
+        )}
       </div>
 
-      {gameState.isGameOver && !gameState.cashedOut && (
+      {/* Game Over / Cashout Success Modals, also conditional on game being active */}
+      {((gameMode === 'classic_pvp' || gameMode === 'warfare_pvp') ? (isConnected && !connectionError) : true) && (
+        <>
+          {gameState.isGameOver && !gameState.cashedOut && (
+            <GameOver
+              finalScore={gameState.finalScore}
+              finalLength={gameState.finalLength}
+              onRestart={handleRestart}
+              onBackToMenu={onBackToMenu}
+            />
+          )}
+          {gameState.cashedOut && (
+            <CashoutSuccess
+              cashoutAmount={gameState.cashoutAmount || 0}
+              onRestart={handleRestart}
+              onBackToMenu={onBackToMenu}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+export default GameContainer;
         <GameOver
           finalScore={gameState.finalScore}
           finalLength={gameState.finalLength}

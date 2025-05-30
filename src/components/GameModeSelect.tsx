@@ -1054,6 +1054,40 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
                     </div>
                   </div>
                 </button>
+
+                <button
+                  className="mode-card classic-pvp-mode" // New class for styling
+                  onClick={() => handleModeSelect('classic_pvp')}
+                  disabled={userData.username.trim() === ''}
+                >
+                  <div className="mode-icon">🤝</div> {/* Icon for PvP */}
+                  <div className="mode-info">
+                    <h4>Classic PvP</h4>
+                    <p>Player vs Player classic gameplay</p>
+                    <div className="mode-features">
+                      <span>• Player vs Player</span>
+                      <span>• Cash & Orbs</span>
+                      <span>• No AI</span>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  className="mode-card warfare-pvp-mode" // New class for styling
+                  onClick={() => handleModeSelect('warfare_pvp')}
+                  disabled={userData.username.trim() === ''}
+                >
+                  <div className="mode-icon">🛡️</div> {/* Icon for PvP warfare */}
+                  <div className="mode-info">
+                    <h4>Warfare PvP</h4>
+                    <p>Player vs Player combat with weapons</p>
+                    <div className="mode-features">
+                      <span>• Player vs Player</span>
+                      <span>• Weapon System</span>
+                      <span>• Power-ups</span>
+                    </div>
+                  </div>
+                </button>
               </div>
 
               {userData.username.trim() === '' && (
