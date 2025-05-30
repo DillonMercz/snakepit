@@ -134,29 +134,29 @@ class Snake {
         this.gameInstance = gameInstance || { gameMode: 'classic', worldWidth: 4000, worldHeight: 4000 }; // Mock gameInstance
 
         this.baseSize = 8;
-        this.speed = 4; 
-        this.baseSpeed = 4; 
-        this.speedMultiplier = 1.0; 
+        this.speed = 4;
+        this.baseSpeed = 4;
+        this.speedMultiplier = 1.0;
         this.angle = Math.random() * Math.PI * 2;
         this.targetAngle = this.angle;
         this.alive = true;
         this.boost = 100;
         this.maxBoost = 100;
-        this.boostCapRemoved = false; 
+        this.boostCapRemoved = false;
 
         this.segments = [{ x: x, y: y, health: 100, maxHealth: 100 }];
-        this.pathHistory = [{ x: x, y: y }]; 
-        this.maxPathLength = 1000; 
-        this.pathRecordDistance = 2; 
+        this.pathHistory = [{ x: x, y: y }];
+        this.maxPathLength = 1000;
+        this.pathRecordDistance = 2;
 
-        this.growthProgress = 0; 
-        this.growthRate = 0.02; 
+        this.growthProgress = 0;
+        this.growthRate = 0.02;
 
         this.invincible = false;
         this.invincibilityEndTime = 0;
-        this.blinkPhase = 0; 
-        this.shrinkProgress = 0; 
-        this.growthQueue = 0; 
+        this.blinkPhase = 0;
+        this.shrinkProgress = 0;
+        this.growthQueue = 0;
 
         // Score and Cash - server will manage this more directly based on game rules
         this.score = 0;
@@ -177,36 +177,44 @@ class Snake {
         this.ammoInventory = {
             light_energy: 0, heavy_energy: 0, plasma_cells: 0, heavy_plasma: 0, rockets: 0, rail_slugs: 0
         };
-        
+
         if (!isPlayer) {
             this.aiPersonality = this.generateAIPersonality();
             this.lastShotTime = 0;
             this.targetEnemy = null;
-            this.combatState = 'hunting'; 
+            this.combatState = 'hunting';
             this.lastStateChange = Date.now();
             this.threatLevel = 0;
-            this.aggressionLevel = Math.random() * 0.5 + 0.3; 
-            this.accuracy = 0.6 + Math.random() * 0.3; 
-            this.reactionTime = 200 + Math.random() * 300; 
+            this.aggressionLevel = Math.random() * 0.5 + 0.3;
+            this.accuracy = 0.6 + Math.random() * 0.3;
+            this.reactionTime = 200 + Math.random() * 300;
             this.lastDecisionTime = 0;
             this.patrolTarget = { x: x, y: y };
             this.lastKnownEnemyPos = null;
             this.weaponPreference = this.generateWeaponPreference();
         }
 
-        this.activePowerups = []; 
-        this.powerupInventory = []; 
-        this.cashValue = 0; 
+        this.activePowerups = [];
+        this.powerupInventory = [];
+        this.cashValue = 0;
+
+        // Ensure currentWeapon is set for warfare_pvp, defaults to sidearm if nothing else equipped
+        if (this.gameInstance && this.gameInstance.gameMode === 'warfare_pvp') {
+            if (!this.currentWeapon && this.weaponInventory.sidearm) {
+                this.currentWeapon = this.weaponInventory.sidearm;
+                this.weaponInventory.currentSlot = 'sidearm';
+            }
+        }
     }
 
     get size() {
-        const balance = this.isPlayer ? 
-            (this.gameInstance ? (this.gameInstance.getPlayerCashBalance ? this.gameInstance.getPlayerCashBalance(this) : this.cashBalance) : this.cashBalance) : 
+        const balance = this.isPlayer ?
+            (this.gameInstance ? (this.gameInstance.getPlayerCashBalance ? this.gameInstance.getPlayerCashBalance(this) : this.cashBalance) : this.cashBalance) :
             (this.cashBalance || 50); // Use own cashBalance for AI or if gameInstance method not available
-        const cashMultiplier = Math.sqrt(Math.max(0,balance) / 10); 
-        return this.baseSize + cashMultiplier * 2; 
+        const cashMultiplier = Math.sqrt(Math.max(0,balance) / 10);
+        return this.baseSize + cashMultiplier * 2;
     }
-    
+
     getGame() {
         return this.gameInstance;
     }
@@ -216,8 +224,8 @@ class Snake {
     }
 
     getTargetLength() {
-        const balance = this.isPlayer ? 
-        (this.gameInstance ? (this.gameInstance.getPlayerCashBalance ? this.gameInstance.getPlayerCashBalance(this) : this.cashBalance) : this.cashBalance) : 
+        const balance = this.isPlayer ?
+        (this.gameInstance ? (this.gameInstance.getPlayerCashBalance ? this.gameInstance.getPlayerCashBalance(this) : this.cashBalance) : this.cashBalance) :
         (this.cashBalance || 50);
         const baseSegments = 1;
         const cashPerSegment = 10;
@@ -240,8 +248,8 @@ class Snake {
 
         let currentSpeed = this.baseSpeed * this.speedMultiplier;
         if (boosting && this.boost > 0) {
-            currentSpeed *= 2.5; 
-            this.boost -= 0.4; 
+            currentSpeed *= 2.5;
+            this.boost -= 0.4;
             if (this.boost <= 0 && this.boostCapRemoved) {
                 this.boostCapRemoved = false;
             }
@@ -297,7 +305,7 @@ class Snake {
         }
         const requiredPathLength = (this.segments.length - 1) * this.segmentDistance;
         if (totalPathLength < requiredPathLength) {
-            this.updateSegmentsWarfareMode(); 
+            this.updateSegmentsWarfareMode();
             return;
         }
         for (let i = 1; i < this.segments.length; i++) {
@@ -350,9 +358,9 @@ class Snake {
     }
 
     activateSpawnInvincibility(balance) { // Renamed from cashBalance to balance
-        const baseDuration = 1000; 
-        const perDollarDuration = 20; 
-        const maxDuration = 3000; 
+        const baseDuration = 1000;
+        const perDollarDuration = 20;
+        const maxDuration = 3000;
         const duration = Math.min(baseDuration + (balance * perDollarDuration), maxDuration);
         this.invincible = true;
         this.invincibilityEndTime = Date.now() + duration;
@@ -364,7 +372,7 @@ class Snake {
             if (Date.now() >= this.invincibilityEndTime) {
                 this.invincible = false;
             } else {
-                this.blinkPhase += 0.3; 
+                this.blinkPhase += 0.3;
             }
         }
     }
@@ -377,7 +385,7 @@ class Snake {
         const targetLength = this.getTargetLength();
         const currentLength = this.segments.length;
         if (targetLength > currentLength) {
-            this.growthProgress += this.growthRate * 2; 
+            this.growthProgress += this.growthRate * 2;
             if (this.growthProgress >= 1) {
                 this.addSegment();
                 this.growthProgress = 0;
@@ -401,11 +409,11 @@ class Snake {
 
     addSegment() {
         const lastSegment = this.segments[this.segments.length - 1];
-        const newSegment = { 
+        const newSegment = {
             x: lastSegment.x, // Simplified: add at the tail's current position
-            y: lastSegment.y, 
-            health: 100, 
-            maxHealth: 100 
+            y: lastSegment.y,
+            health: 100,
+            maxHealth: 100
         };
         this.segments.push(newSegment);
     }
@@ -416,7 +424,7 @@ class Snake {
             this.segments.pop();
         }
     }
-    
+
     grow() { // Called by food typically
         this.growthQueue += 0.1; // Grow by a fraction of a segment per food pellet
     }
@@ -530,12 +538,15 @@ class Snake {
         // console.log(`${this.username} collected orb. Score: ${this.score}, Boost: ${this.boost}`);
     }
 
-    convertToFoodItems() {
+    convertToFoodItems(segmentsToConvert = null) {
         const foodItems = [];
-        const segmentValue = Math.max(1, Math.floor((this.cashBalance || this.wager || 10) / this.segments.length / 2)); // Value per food piece
+        const segments = segmentsToConvert || this.segments;
+        if (!segments || segments.length === 0) return foodItems;
+
+        const segmentValue = Math.max(1, Math.floor((this.cashBalance || this.wager || 10) / segments.length / 2)); // Value per food piece
         const foodSize = Math.max(3, (this.size || 8) / 2);
 
-        this.segments.forEach(segment => {
+        segments.forEach(segment => {
             // Create 1 or 2 food items per segment
             for (let i = 0; i < (Math.random() < 0.5 ? 1 : 2) ; i++) {
                 foodItems.push({
@@ -559,25 +570,64 @@ class Snake {
         this.activePowerups.forEach(p => { if (p.speedBoost) multiplier *= p.speedBoost; });
         return multiplier;
     }
-    
+
+    takeDamage(damageAmount, segmentIndex) {
+        if (!this.alive || segmentIndex < 0 || segmentIndex >= this.segments.length) {
+            return { died: false, brokeAt: null, brokenSegments: [] };
+        }
+
+        const segment = this.segments[segmentIndex];
+        segment.health -= damageAmount;
+
+        if (segment.health <= 0) {
+            if (segmentIndex === 0) { // Headshot
+                this.alive = false;
+                // console.log(`Snake ${this.id} died from headshot.`);
+                return { died: true, brokeAt: 0, brokenSegments: [...this.segments] }; // All segments are effectively "broken"
+            } else { // Body segment destroyed
+                // console.log(`Snake ${this.id} segment ${segmentIndex} destroyed.`);
+                const brokenParts = this.breakSegments(segmentIndex);
+                if (!this.alive) { // Snake might die if all segments break
+                     return { died: true, brokeAt: segmentIndex, brokenSegments: brokenParts };
+                }
+                return { died: false, brokeAt: segmentIndex, brokenSegments: brokenParts };
+            }
+        }
+        // console.log(`Snake ${this.id} segment ${segmentIndex} took ${damageAmount} damage, health: ${segment.health}`);
+        return { died: false, brokeAt: null, brokenSegments: [] };
+    }
+
+    breakSegments(breakIndex) {
+        if (breakIndex <= 0 || breakIndex >= this.segments.length) { // Cannot break head this way, or non-existent segment
+            return [];
+        }
+        const brokenOff = this.segments.splice(breakIndex);
+        // this.length is a getter, so it's updated automatically.
+        // If all segments are gone (e.g. broke at index 1 and only 1 segment left), the snake should die.
+        if (this.segments.length === 0) { // Should technically be handled by headshot or if breakIndex was 0
+            this.alive = false;
+        }
+        return brokenOff;
+    }
+
     damageHelmet(damage) {
         const helmet = this.activePowerups.find(p => p.type === 'helmet');
         if (helmet && helmet.currentHelmetHealth > 0) {
             helmet.currentHelmetHealth -= damage;
             if (helmet.currentHelmetHealth <= 0) {
                 this.activePowerups = this.activePowerups.filter(p => p.type !== 'helmet');
-                return true; 
+                return true;
             }
-            return false; 
+            return false;
         }
-        return null; 
+        return null;
     }
 
     getHelmetHealth() {
         const helmet = this.activePowerups.find(p => p.type === 'helmet');
         return helmet ? helmet.currentHelmetHealth : 0;
     }
-    
+
     canShoot() { // For AI
         return this.currentWeapon && this.currentWeapon.canShoot();
     }
@@ -606,6 +656,33 @@ class Snake {
     }
 
     // darkenColor and addAlpha are global helpers now
+
+    // New fireWeapon method for player controlled snakes (e.g. in warfare_pvp)
+    fireWeapon() {
+        // Only allow firing in warfare_pvp mode and if alive
+        if (!this.gameInstance || this.gameInstance.gameMode !== 'warfare_pvp' || !this.alive) {
+            return false;
+        }
+
+        if (this.currentWeapon && this.currentWeapon.canShoot()) {
+            const shotFiredSuccessfully = this.currentWeapon.shoot(); // This updates ammo & lastShotTime in Weapon class
+
+            if (shotFiredSuccessfully) {
+                // console.log(`Snake ${this.username} firing ${this.currentWeapon.name} at angle ${this.angle}`);
+                // Server will use these details to create a projectile entity
+                return {
+                    fired: true,
+                    weaponType: this.currentWeapon.type,
+                    config: this.currentWeapon.config, // Pass full config for details like speed, damage
+                    angle: this.angle, // Snake's current facing angle is the firing angle
+                    x: this.segments[0].x, // Fire from the head of the snake
+                    y: this.segments[0].y,
+                    ownerId: this.id
+                };
+            }
+        }
+        return false; // Cannot shoot (no weapon, cooldown, no ammo, etc.)
+    }
 }
 
 module.exports = Snake;

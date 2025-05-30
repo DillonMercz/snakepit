@@ -6,7 +6,7 @@ import GameContainer from './components/GameContainer';
 import AudioManager from './utils/AudioManager';
 import { AuthProvider } from './contexts/AuthContext';
 // Assuming NetworkManager is a singleton instance exported from this path
-import networkManagerInstance from './utils/NetworkManager'; 
+import networkManagerInstance from './utils/NetworkManager';
 import AuthTest from './components/AuthTest';
 
 export type GameMode = 'classic' | 'warfare' | 'classic_pvp' | 'warfare_pvp' | null;
@@ -41,7 +41,7 @@ function App() {
       if (networkManager) {
         setConnectionError(null); // Clear previous errors
         // Show "Connecting..." or similar in UI based on isConnected and connectionError states
-        
+
         networkManager.onGameJoined = (data: { playerId: string; roomId: string; gameMode: GameMode; players: any[] }) => {
           console.log('App: GameJoined!', data);
           setPlayerId(data.playerId);
@@ -56,7 +56,7 @@ function App() {
           setConnectionError(error || 'Failed to connect to the server.');
           setIsConnected(false);
           setGameMode(null); // Reset game mode on error
-          setGameStarted(false); 
+          setGameStarted(false);
         };
         networkManager.onDisconnected = (reason: string) => {
           console.log('App: Disconnected:', reason);
@@ -75,10 +75,10 @@ function App() {
           .then(() => {
             console.log("App: NetworkManager connected. Attempting to join game...");
             if (selectedUserData) { // Ensure userData is available
-                 networkManager.joinGame({ 
-                    gameMode: mode, 
-                    username: selectedUserData.username, 
-                    wager: selectedUserData.wager, 
+                 networkManager.joinGame({
+                    gameMode: mode,
+                    username: selectedUserData.username,
+                    wager: selectedUserData.wager,
                     color: '#'+Math.floor(Math.random()*16777215).toString(16) // Random color for now
                 });
             } else {
@@ -136,7 +136,7 @@ function App() {
     setUserData(null); // Also clear userData
     setGameStarted(false);
   };
-  
+
   // App unmount cleanup
   useEffect(() => {
     return () => {
@@ -165,8 +165,8 @@ function App() {
         {!legalAccepted ? (
           <LegalOverlay onComplete={handleLegalComplete} />
         ) : !gameStarted ? (
-          <GameModeSelect 
-            onModeSelect={handleModeSelect} 
+          <GameModeSelect
+            onModeSelect={handleModeSelect}
             isConnecting={gameMode && (gameMode === 'classic_pvp' || gameMode === 'warfare_pvp') && !isConnected && !connectionError}
             connectionError={connectionError}
           />

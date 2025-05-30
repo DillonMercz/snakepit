@@ -28,7 +28,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       console.log('Game already initialized or initializing, skipping initialization');
       return;
     }
-    
+
     console.log('GameCanvas: Initializing game effect triggered.');
     gameInitialized = true;
     initializingRef.current = true;
@@ -36,7 +36,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const initializeGame = async () => {
       try {
         const { Game } = await import('../gameLogic.js');
-        
+
         const isMultiplayer = gameMode === 'classic_pvp' || gameMode === 'warfare_pvp';
         let localPlayerId = null;
         if (isMultiplayer && networkManager) {
@@ -69,7 +69,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       } catch (error) {
         console.error('GameCanvas: Failed to initialize game:', error);
       } finally {
-        initializingRef.current = false; 
+        initializingRef.current = false;
       }
     };
 
@@ -82,7 +82,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       }
       gameInstanceRef.current = null;
       gameInitialized = false;
-      initializingRef.current = false; 
+      initializingRef.current = false;
     };
   }, [gameMode, networkManager, gameInstanceRef, onGameStateUpdate]);
 
@@ -120,8 +120,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           // For simplicity, if Game.player.targetAngle is updated by mouse events, use that.
           // Otherwise, recalculate here if mouse state is available to GameCanvas.
           // Assuming game.player.targetAngle is correctly maintained by existing mousemove listeners in Game class
-          const targetAngle = game.player.targetAngle; 
-          
+          const targetAngle = game.player.targetAngle;
+
           const inputData = {
             targetAngle: targetAngle,
             boosting: game.boosting || false, // game.boosting is updated by Game's event listeners

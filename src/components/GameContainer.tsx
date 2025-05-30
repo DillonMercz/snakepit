@@ -43,10 +43,11 @@ export interface GameState {
   finalLength: number;
   cashedOut?: boolean;
   cashoutAmount?: number;
+  currentWeaponInfo?: { type: string; ammo: number | string } | null; // Added for current weapon display
 }
 
-const GameContainer: React.FC<GameContainerProps> = ({ 
-  gameMode, 
+const GameContainer: React.FC<GameContainerProps> = ({
+  gameMode,
   onBackToMenu,
   networkManager,
   isConnected,
@@ -174,8 +175,8 @@ const GameContainer: React.FC<GameContainerProps> = ({
                 gameMode={gameMode}
                 gameInstanceRef={gameInstanceRef}
                 onGameStateUpdate={setGameState}
-                networkManager={networkManager} 
-                localPlayerId={playerId}      
+                networkManager={networkManager}
+                localPlayerId={playerId}
               />
             )}
           </>
@@ -195,6 +196,7 @@ const GameContainer: React.FC<GameContainerProps> = ({
               gameState={gameState}
               gameMode={gameMode}
               onCashOut={handleCashOut}
+              localPlayerId={playerId} // Pass playerId as localPlayerId
             />
             <Minimap gameInstanceRef={gameInstanceRef} />
             <Instructions gameMode={gameMode} />

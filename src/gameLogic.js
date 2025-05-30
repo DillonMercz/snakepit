@@ -1,3 +1,19 @@
+// Helper function for linear interpolation
+function lerp(start, end, t) {
+    return start * (1 - t) + end * t;
+}
+
+// Helper function for angular interpolation (shortest path)
+function lerpAngle(start, end, t) {
+    let delta = (end - start) % (Math.PI * 2);
+    if (delta > Math.PI) {
+        delta -= Math.PI * 2;
+    } else if (delta < -Math.PI) {
+        delta += Math.PI * 2;
+    }
+    return start + delta * t;
+}
+
 // Weapon configuration data
 const WEAPON_CONFIGS = {
     // Default sidearm - always available
@@ -1451,7 +1467,8 @@ class Game {
         this.remotePlayers = new Map();
 
         // Warfare mode properties
-        this.weapons = [];
+        this.weaponItems = []; // For weapon items on the ground
+        this.weapons = []; // For client-side management in single-player warfare (if different from items)
         this.ammo = []; // Separate ammo pickups
         this.powerups = []; // Defensive and offensive powerups
         this.projectiles = []; // Projectiles fired by snakes
@@ -1489,15 +1506,15 @@ class Game {
         this.currentKing = null; // Track the snake with highest balance
 
         // Game objects
-        this.player = new Snake(2000, 2000, '#FFD700', true); 
-        this.player.id = localPlayerId; 
-        this.player.username = "Player"; 
-        this.player.gameInstance = this; 
+        this.player = new Snake(2000, 2000, '#FFD700', true);
+        this.player.id = localPlayerId;
+        this.player.username = "Player";
+        this.player.gameInstance = this;
 
-        this.playerWager = 50; 
+        this.playerWager = 50;
         this.player.wager = this.playerWager;
-        this.cashBalance = this.playerWager; 
-        this.player.cashBalance = this.cashBalance; 
+        this.cashBalance = this.playerWager;
+        this.player.cashBalance = this.cashBalance;
         this.player.score = this.cashBalance; // Score is cash in PvP relevant modes
 
         this.player.activateSpawnInvincibility(this.playerWager);
@@ -1512,7 +1529,7 @@ class Game {
         }
         this.player.score = this.score; // Ensure snake's score matches game's score
 
-        this.aiSnakes = []; 
+        this.aiSnakes = [];
         this.food = [];
         this.glowOrbs = [];
 
@@ -1551,7 +1568,7 @@ class Game {
 
         // Create AI snakes ONLY if not multiplayer
         if (!this.isMultiplayer) {
-            const aiCount = this.gameMode === 'warfare' ? 15 : 18;
+            const aiCount = (this.gameMode === 'warfare' || this.gameMode === 'warfare_pvp') ? 15 : 18;
             console.log(`Creating ${aiCount} AI snakes for ${this.gameMode} mode (single player)`);
             for (let i = 0; i < aiCount; i++) {
                 const x = Math.random() * this.worldWidth;
@@ -1559,11 +1576,11 @@ class Game {
                 const colors = ['#ff0080', '#00ff41', '#00ffff', '#ff8000', '#8000ff', '#ffff00', '#ff4444', '#44ff44', '#4444ff'];
                 const color = colors[Math.floor(Math.random() * colors.length)];
                 const aiSnake = new Snake(x, y, color, false); // isPlayer = false
-                aiSnake.gameInstance = this; 
+                aiSnake.gameInstance = this;
                 aiSnake.wager = this.availableWagers[Math.floor(Math.random() * this.availableWagers.length)];
                 // For AI, 'collectedCash' might be their primary cash metric if Snake class uses it.
                 // Ensure Snake class's own cashBalance is also in sync if it's used for size/logic.
-                aiSnake.collectedCash = aiSnake.wager; 
+                aiSnake.collectedCash = aiSnake.wager;
                 aiSnake.cashBalance = aiSnake.collectedCash;
                 this.updateSnakeCashValue(aiSnake); // This likely updates aiSnake.cashValue based on segments
                 aiSnake.activateSpawnInvincibility(aiSnake.wager);
@@ -1681,9 +1698,12 @@ class Game {
         this.canvas.addEventListener('mousedown', (e) => {
             if (e.button === 0) {
                 // Left click - shoot in warfare mode (only if not invincible), boost in classic mode
-                if (this.gameMode === 'warfare' && this.currentWeapon && !this.player.isInvincible()) {
+                if ((this.gameMode === 'warfare' || this.gameMode === 'warfare_pvp') && this.currentWeapon && !this.player.isInvincible()) {
                     this.mouseHeld = true;
-                    this.shoot();
+                    // In multiplayer, actual shooting is triggered by server based on input.
+                    // For local feedback or single player, this.shoot() might be called.
+                    // GameCanvas sends `mouseHeld` as `shooting` input.
+                    if (!this.isMultiplayer) this.shoot();
                 } else {
                     this.boosting = true;
                 }
@@ -1759,6 +1779,152 @@ class Game {
             }
         });
     }
+
+    // New method for drawing weapon items on the ground (from server data in PvP)
+    drawWeaponItems() {
+        if (!this.weaponItems || !this.ctx || !this.camera || !this.canvas) {
+            return;
+        }
+        this.weaponItems.forEach(item => {
+            // Assuming item structure from server: { x, y, type, id (optional) }
+            // Server should send 'type' matching a key in WEAPON_CONFIGS
+            if (typeof item.x !== 'number' || typeof item.y !== 'number' || !item.type) {
+                return;
+            }
+
+            const screenX = item.x - this.camera.x;
+            const screenY = item.y - this.camera.y;
+            const config = WEAPON_CONFIGS[item.type];
+            const itemSize = 20; // Placeholder size for weapon items
+
+            if (screenX < -itemSize - 50 || screenX > this.canvas.width + itemSize + 50 ||
+                screenY < -itemSize - 50 || screenY > this.canvas.height + itemSize + 50) {
+                return;
+            }
+
+            if (config) {
+                this.ctx.fillStyle = config.color || '#CCCCCC'; // Use weapon color or a default
+                this.ctx.fillRect(screenX - itemSize/2, screenY - itemSize/2, itemSize, itemSize);
+
+                this.ctx.fillStyle = '#000000';
+                this.ctx.font = '8px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(item.type.substring(0,3).toUpperCase(), screenX, screenY + 4);
+            } else {
+                // Fallback for unknown weapon item types
+                this.ctx.fillStyle = '#FF00FF'; // Bright pink for unknown items
+                this.ctx.fillRect(screenX - itemSize/2, screenY - itemSize/2, itemSize, itemSize);
+            }
+        });
+    }
+
+    Game.prototype.drawWarfarePvpItemsAndProjectiles_UNIQUE = function() {
+        if (!this.isMultiplayer || this.gameMode !== 'warfare_pvp') {
+            return;
+        }
+
+        // Drawing logic for weapon items on the ground
+        if (this.weaponItems && typeof this.drawWeaponItems === 'function') {
+             this.drawWeaponItems(); // Assumes drawWeaponItems was successfully created
+        } else if (this.weaponItems && this.ctx && this.camera && this.canvas) { // Fallback if drawWeaponItems doesn't exist
+            this.weaponItems.forEach(item => {
+                const x = item.x - this.camera.x;
+                const y = item.y - this.camera.y;
+                const config = WEAPON_CONFIGS[item.type]; // WEAPON_CONFIGS is globally available in this file
+                const itemSize = 20;
+
+                if (x < -itemSize - 50 || x > this.canvas.width + itemSize + 50 ||
+                    y < -itemSize - 50 || y > this.canvas.height + itemSize + 50) {
+                    return;
+                }
+                if (config) {
+                    this.ctx.fillStyle = config.color || '#CCCCCC';
+                    this.ctx.fillRect(x - itemSize/2, y - itemSize/2, itemSize, itemSize);
+                    this.ctx.fillStyle = '#000000';
+                    this.ctx.font = '8px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(item.type.substring(0,3).toUpperCase(), x, y + 4);
+                } else {
+                     this.ctx.fillStyle = '#FF00FF';
+                     this.ctx.fillRect(x - itemSize/2, y - itemSize/2, itemSize, itemSize);
+                }
+            });
+        }
+
+        // Drawing logic for projectiles
+        if (this.projectiles && this.ctx && this.camera && this.canvas) {
+            this.projectiles.forEach(proj => {
+                if (typeof proj.x !== 'number' || typeof proj.y !== 'number' ||
+                    !isFinite(proj.x) || !isFinite(proj.y)) {
+                    return;
+                }
+
+                const screenX = proj.x - this.camera.x;
+                const screenY = proj.y - this.camera.y;
+                const projSize = proj.size || (WEAPON_CONFIGS[proj.weaponType] ? WEAPON_CONFIGS[proj.weaponType].projectileSize : undefined) || 4;
+
+                if (screenX < -projSize - 50 || screenX > this.canvas.width + projSize + 50 ||
+                    screenY < -projSize - 50 || screenY > this.canvas.height + projSize + 50) {
+                    return;
+                }
+
+                const time = Date.now() * 0.001;
+                const creationTime = typeof proj.creationTime === 'number' ? proj.creationTime : Date.now();
+                const age = (Date.now() - creationTime) * 0.001;
+
+                // Prepare a consistent projectile object for detailed drawing functions
+                const drawableProjectile = {
+                    ...proj,
+                    type: proj.weaponType,
+                    angle: typeof proj.angle === 'number' ? proj.angle : 0,
+                    animationOffset: proj.animationOffset || Math.random() * Math.PI * 2,
+                    isTracer: (proj.config && typeof proj.config.tracerRounds === 'boolean') ? proj.config.tracerRounds : false,
+                    trail: proj.trail || []
+                };
+
+                // Call specific drawing functions based on weaponType
+                // These detailed drawing functions (drawDefaultProjectile, drawLaserProjectile, etc.) are assumed to exist elsewhere in this class.
+                switch (drawableProjectile.type) {
+                    case 'sidearm':
+                        this.drawDefaultProjectile(drawableProjectile, screenX, screenY, time, age);
+                        break;
+                    case 'laser_pistol':
+                    case 'laser_rifle':
+                        this.drawLaserProjectile(drawableProjectile, screenX, screenY, time, age);
+                        break;
+                    case 'plasma_smg':
+                    case 'plasma_cannon':
+                        this.drawPlasmaProjectile(drawableProjectile, screenX, screenY, time, age);
+                        break;
+                    case 'rocket_launcher':
+                        this.drawMissileProjectile(drawableProjectile, screenX, screenY, time, age);
+                        break;
+                    case 'rail_gun':
+                        this.drawRailGunProjectile(drawableProjectile, screenX, screenY, time, age);
+                        break;
+                    case 'minigun':
+                         if (drawableProjectile.isTracer) {
+                            this.drawTracerRound(drawableProjectile, screenX, screenY, time, age);
+                         } else {
+                            this.drawDefaultProjectile(drawableProjectile, screenX, screenY, time, age);
+                         }
+                        break;
+                    default:
+                        let defaultColor = '#FF00FF'; // Bright pink for unknown projectiles
+                        if (proj.config && proj.config.color) {
+                            defaultColor = proj.config.color;
+                        } else if (drawableProjectile.type && WEAPON_CONFIGS[drawableProjectile.type] && WEAPON_CONFIGS[drawableProjectile.type].color) {
+                            defaultColor = WEAPON_CONFIGS[drawableProjectile.type].color;
+                        }
+                        this.ctx.fillStyle = defaultColor;
+                        this.ctx.beginPath();
+                        this.ctx.arc(screenX, screenY, projSize, 0, Math.PI * 2);
+                        this.ctx.fill();
+                        break;
+                }
+            });
+        }
+    };
 
     // Weapon switching methods
     switchToWeapon(slot) {
@@ -1955,7 +2121,7 @@ class Game {
 
     handleFullAutoFiring() {
         // Only fire if mouse is held down and we have a weapon
-        if (!this.mouseHeld || !this.currentWeapon || this.gameMode !== 'warfare') return;
+        if (!this.mouseHeld || !this.currentWeapon || (this.gameMode !== 'warfare' && this.gameMode !== 'warfare_pvp')) return;
 
         const firingMode = this.currentWeapon.config.firingMode || 'semi_auto';
 
@@ -1989,13 +2155,13 @@ class Game {
                 // The actual createProjectile call might happen upon server confirmation or predicted.
                 // For now, local shooting input is captured by GameCanvas and sent via NetworkManager.
                 // Full auto firing might need a flag set by input, and then NetworkManager sends continuous shoot commands.
-                this.handleFullAutoFiring(); 
+                this.handleFullAutoFiring();
             }
             // Remote players are updated via processGameState.
             // Server handles authoritative state: collisions, item spawning, projectile creation/updates.
             // Glow orbs and coins are fully updated via processGameState from server data.
         }
-        
+
         // Common updates for both modes
         this.updateCamera();
         // this.updateKing(); // King status likely comes from server in MP
@@ -2065,12 +2231,12 @@ class Game {
                             const damageReduction = snake.getDamageReduction();
                             segment.health -= (projectile.damage * 25) * (1 - damageReduction);
                             if (segment.health <= 0) this.breakOffSegments(snake, i, projectile.owner);
-                            return false; 
+                            return false;
                         }
                     }
                 }
             }
-            return true; 
+            return true;
         });
     }
 
@@ -2858,7 +3024,7 @@ class Game {
 
         // Check food collisions with vacuum effect
         allSnakes.forEach(snake => {
-            const vacuumRadius = snake.size * 3.5; 
+            const vacuumRadius = snake.size * 3.5;
 
             // Regular food
             for (let i = this.food.length - 1; i >= 0; i--) {
@@ -2867,7 +3033,7 @@ class Game {
 
                 if (dist < vacuumRadius && dist > snake.size + food.size) {
                     const distanceRatio = 1 - (dist / vacuumRadius);
-                    const pullStrength = 1.2 + distanceRatio * 2.0; 
+                    const pullStrength = 1.2 + distanceRatio * 2.0;
                     const angle = Math.atan2(snake.y - food.y, snake.x - food.x);
                     food.x += Math.cos(angle) * pullStrength;
                     food.y += Math.sin(angle) * pullStrength;
@@ -2878,14 +3044,14 @@ class Game {
                     if (!this.isMultiplayer || (snake !== this.player && !this.remotePlayers.has(snake.id))) {
                         this.food.splice(i, 1); // Remove food
                         if (snake === this.player) { // Should only be true in single player now
-                            const coinMassValue = 10; 
-                            const foodMassValue = coinMassValue * 0.05; 
+                            const coinMassValue = 10;
+                            const foodMassValue = coinMassValue * 0.05;
                             this.player.growthQueue += foodMassValue;
                             this.player.addSpeedBoost(1);
-                            this.player.boostCapRemoved = true; 
-                            this.player.boost += 5; 
+                            this.player.boostCapRemoved = true;
+                            this.player.boost += 5;
                             if (this.gameMode === 'warfare') {
-                                this.score = this.cashBalance; 
+                                this.score = this.cashBalance;
                             }
                             this.updateGameState();
                         } else if (!this.isMultiplayer) { // AI snake in single player
@@ -2910,7 +3076,7 @@ class Game {
 
                 if (dist < vacuumRadius && dist > snake.size + orb.size) {
                     const distanceRatio = 1 - (dist / vacuumRadius);
-                    const pullStrength = 0.8 + distanceRatio * 1.5; 
+                    const pullStrength = 0.8 + distanceRatio * 1.5;
                     const angle = Math.atan2(snake.y - orb.y, snake.x - orb.x);
                     orb.x += Math.cos(angle) * pullStrength;
                     orb.y += Math.sin(angle) * pullStrength;
@@ -2921,7 +3087,7 @@ class Game {
                      if (!this.isMultiplayer || (snake !== this.player && !this.remotePlayers.has(snake.id))) {
                         this.glowOrbs.splice(i, 1); // Remove orb
                         snake.boost += (orb.valueBoost || 100); // Use a property like valueBoost or default
-                        
+
                         if (this.gameMode === 'classic' && !this.isMultiplayer) {
                              if(orb.scoreValue) snake.score += orb.scoreValue; // Orbs might give score
                              for (let j = 0; j < (orb.growthValue || 0); j++) { // Orbs might give growth
@@ -3144,6 +3310,11 @@ class Game {
         // Draw food
         this.drawFood();
 
+        // WORKAROUND: Call new consolidated drawing method from here
+        if (typeof this.drawWarfarePvpItemsAndProjectiles_UNIQUE === 'function') {
+            this.drawWarfarePvpItemsAndProjectiles_UNIQUE();
+        }
+
         // Draw glow orbs
         this.drawGlowOrbs();
 
@@ -3151,11 +3322,13 @@ class Game {
         this.drawSnakes();
 
         // Draw warfare mode elements
-        if (this.gameMode === 'warfare') {
-            this.drawWeapons();
-            this.drawAmmo();
-            this.drawPowerups();
-            this.drawProjectiles();
+        if (this.gameMode === 'warfare' || this.gameMode === 'warfare_pvp') { // Ensure warfare_pvp also draws projectiles
+            if (this.gameMode === 'warfare' && !this.isMultiplayer) { // Original single-player warfare items
+                 this.drawWeapons();
+                 this.drawAmmo();
+                 this.drawPowerups();
+            }
+            this.drawProjectiles(); // Draw projectiles in both warfare and warfare_pvp modes
         }
 
         // Draw coins in both modes (gambling mechanics in both)
@@ -3274,56 +3447,58 @@ class Game {
     }
 
     drawProjectiles() {
-        if (!this.projectiles) return;
+        if (!this.projectiles || !this.ctx || !this.camera || !this.canvas) return;
 
-        this.projectiles.forEach(projectile => {
-            // Validate projectile coordinates
-            if (!isFinite(projectile.x) || !isFinite(projectile.y)) {
-                console.warn('Invalid projectile position:', projectile.x, projectile.y);
+        this.projectiles.forEach(proj => {
+            // Projectile data from server: { id, ownerId, weaponType, x, y, angle, speed, damage, size, creationTime, vx, vy, config }
+            if (typeof proj.x !== 'number' || typeof proj.y !== 'number' ||
+                !isFinite(proj.x) || !isFinite(proj.y)) {
+                // console.warn('Skipping draw for invalid server projectile position:', proj.x, proj.y);
                 return;
             }
 
-            const screenX = projectile.x - this.camera.x;
-            const screenY = projectile.y - this.camera.y;
+            const screenX = proj.x - this.camera.x;
+            const screenY = proj.y - this.camera.y;
+            const projSize = proj.size || 4; // Use server-provided size or default
 
-            // Validate screen coordinates
-            if (!isFinite(screenX) || !isFinite(screenY)) {
-                console.warn('Invalid screen coordinates:', screenX, screenY);
-                return;
+            if (screenX < -projSize - 50 || screenX > this.canvas.width + projSize + 50 ||
+                screenY < -projSize - 50 || screenY > this.canvas.height + projSize + 50) {
+                return; // Skip drawing if well off-screen
             }
 
-            // Don't draw if off screen
-            if (screenX < -100 || screenX > this.canvas.width + 100 ||
-                screenY < -100 || screenY > this.canvas.height + 100) {
-                return;
+            let color = '#FFFFFF'; // Default projectile color
+            if (proj.config && proj.config.color) { // Color from server-sent config takes precedence
+                color = proj.config.color;
+            } else if (proj.weaponType && WEAPON_CONFIGS[proj.weaponType] && WEAPON_CONFIGS[proj.weaponType].color) {
+                // Fallback to client-side WEAPON_CONFIGS if server didn't send full config.color
+                color = WEAPON_CONFIGS[proj.weaponType].color;
             }
 
-            const time = Date.now() * 0.001;
-            const age = (Date.now() - projectile.creationTime) * 0.001;
+            // Simple circle for now. The more detailed drawing functions can be re-integrated later if needed.
+            this.ctx.fillStyle = color;
+            this.ctx.beginPath();
+            this.ctx.arc(screenX, screenY, projSize, 0, Math.PI * 2);
+            this.ctx.fill();
 
-            // Draw projectile based on type with enhanced animations
-            switch (projectile.type) {
-                case 'sidearm':
-                    this.drawDefaultProjectile(projectile, screenX, screenY, time, age);
-                    break;
-                case 'laser_pistol':
-                case 'laser_rifle':
-                    this.drawLaserProjectile(projectile, screenX, screenY, time, age);
-                    break;
-                case 'plasma_smg':
-                case 'plasma_cannon':
-                    this.drawPlasmaProjectile(projectile, screenX, screenY, time, age);
-                    break;
-                case 'rocket_launcher':
-                    this.drawMissileProjectile(projectile, screenX, screenY, time, age);
-                    break;
-                case 'rail_gun':
-                    this.drawRailGunProjectile(projectile, screenX, screenY, time, age);
-                    break;
-                default:
-                    this.drawDefaultProjectile(projectile, screenX, screenY, time, age);
-                    break;
-            }
+            // Example of how you might call more detailed drawing functions if server data supports it:
+            // const time = Date.now() * 0.001;
+            // const age = (proj.creationTime ? (Date.now() - proj.creationTime) * 0.001 : 0);
+            // switch (proj.weaponType) {
+            //     case 'sidearm':
+            //         this.drawDefaultProjectile(proj, screenX, screenY, time, age); // Ensure proj has needed properties like isTracer
+            //         break;
+            //     case 'laser_pistol': // Fall-through
+            //     case 'laser_rifle':
+            //         this.drawLaserProjectile(proj, screenX, screenY, time, age); // Ensure proj has angle
+            //         break;
+            //     // Add other cases as needed, ensuring 'proj' has all properties the specific draw functions expect.
+            //     default:
+            //         this.ctx.fillStyle = color;
+            //         this.ctx.beginPath();
+            //         this.ctx.arc(screenX, screenY, projSize, 0, Math.PI * 2);
+            //         this.ctx.fill();
+            //         break;
+            // }
         });
     }
 
@@ -5499,6 +5674,7 @@ class Game {
         this.score = 0;
         this.cashBalance = 0; // Reset cash balance
         this.camera = { x: 1500, y: 1500 };
+        this.remotePlayers = new Map(); // Clear remote players on restart
 
         // Reset weapon system completely
         this.weaponInventory = {
@@ -5564,7 +5740,7 @@ class Game {
         // Create AI snakes ONLY if not multiplayer
         if (!this.isMultiplayer) {
             this.aiSnakes = []; // Clear previous AI
-            const aiCount = this.gameMode === 'warfare' ? 15 : 18;
+            const aiCount = (this.gameMode === 'warfare' || this.gameMode === 'warfare_pvp') ? 15 : 18;
             for (let i = 0; i < aiCount; i++) {
                 const x = Math.random() * this.worldWidth;
                 const y = Math.random() * this.worldHeight;
@@ -5587,7 +5763,7 @@ class Game {
         this.food = []; // Client-side food is replaced by server state in MP
         this.glowOrbs = []; // Client-side orbs are replaced by server state in MP
         this.weapons = []; // Client-side weapons are replaced by server state in MP (for warfare)
-        
+
         if (!this.isMultiplayer) { // Only generate items client-side if not multiplayer
             this.generateFood();
             this.generateGlowOrbs();
@@ -5607,62 +5783,71 @@ class Game {
         if (localPlayerData) {
             // More sophisticated reconciliation (like input prediction & correction) is complex.
             // For now, direct state setting or simple interpolation.
-            this.player.x = localPlayerData.x; 
-            this.player.y = localPlayerData.y;
-            this.player.segments = localPlayerData.segments; 
+            // For local player, store server's state for reconciliation
+            this.player.serverAuthoritativeX = localPlayerData.x;
+            this.player.serverAuthoritativeY = localPlayerData.y;
+            // this.player.serverAuthoritativeAngle = localPlayerData.angle; // If reconciling angle too
+
+            // Snap non-positional states directly, server is truth
+            this.player.segments = JSON.parse(JSON.stringify(localPlayerData.segments)); // Deep copy for safety
             this.player.score = localPlayerData.score;
-            this.cashBalance = localPlayerData.cashBalance; // Update game's cashBalance for local player
-            this.player.cashBalance = localPlayerData.cashBalance; // Sync snake's own cashBalance
+            this.cashBalance = localPlayerData.cashBalance;
+            this.player.cashBalance = localPlayerData.cashBalance;
             this.player.alive = localPlayerData.alive;
-            this.player.angle = localPlayerData.angle; 
-            // this.player.boosting = localPlayerData.boosting; // Let local input drive this for responsiveness
+            // Angle is tricky: local input updates targetAngle, which smoothly updates angle.
+            // Server's angle might be used as a stronger reconciliation if needed, or just for serverAuthoritativeAngle.
+            // For now, local angle updates based on mouse, server state is a target for reconciliation.
+            // this.player.angle = localPlayerData.angle;
+            this.player.boosting = localPlayerData.boosting; // Server state for boosting can override local
             this.player.invincible = localPlayerData.invincible;
             if (localPlayerData.username) this.player.username = localPlayerData.username;
+            if (localPlayerData.length) this.player.length = localPlayerData.length; // if server sends length directly
+            // this.player.size is a getter, so it will reflect cashBalance changes.
 
-
-            // If server says player is dead, trigger game over
-            if (!this.player.alive && this.gameRunning) { // Check gameRunning to prevent multiple gameOver calls
+            if (!this.player.alive && this.gameRunning) {
                  this.gameOver();
             }
-        } else if (this.player.alive && this.gameRunning) {
-            // Local player not found in server state but was alive, likely disconnected or an issue
-            console.warn("Local player data not found in server state. Forcing game over.");
+        } else if (this.player.id && this.player.alive && this.gameRunning) {
+            // If local player was alive and now is not in server state, they likely disconnected or were removed.
+            console.warn("Local player (ID:", this.player.id, ") not found in server state. Forcing game over.");
             this.gameOver();
         }
-
 
         // Update remote players
         const serverPlayerIds = new Set();
         serverState.players.forEach(sp => {
             serverPlayerIds.add(sp.id);
-            if (sp.id === this.player.id) return; 
+            if (sp.id === this.player.id) return;
 
             let remoteSnake = this.remotePlayers.get(sp.id);
-            if (!remoteSnake && sp.alive) { 
-                remoteSnake = new Snake(sp.x, sp.y, sp.color, false); 
-                remoteSnake.id = sp.id;
-                remoteSnake.gameInstance = this; // Give remote snake a reference to the game instance
+            if (!remoteSnake && sp.alive) {
+                remoteSnake = new Snake(sp.x, sp.y, sp.color, false, sp.id, sp.username, this);
                 this.remotePlayers.set(sp.id, remoteSnake);
             }
-            
+
             if (remoteSnake) {
                  if (!sp.alive) {
-                    this.remotePlayers.delete(sp.id); // Remove if dead
+                    this.remotePlayers.delete(sp.id);
                 } else {
-                    remoteSnake.x = sp.x;
-                    remoteSnake.y = sp.y;
-                    remoteSnake.segments = sp.segments;
+                    // Update target states for interpolation
+                    remoteSnake.serverX = sp.x;
+                    remoteSnake.serverY = sp.y;
+                    remoteSnake.serverAngle = sp.angle;
+                    remoteSnake.serverSegments = JSON.parse(JSON.stringify(sp.segments));
+                    remoteSnake.lastServerUpdateTime = Date.now();
+                    if(remoteSnake.interpolationStartTime === 0) remoteSnake.interpolationStartTime = Date.now();
+
+
+                    // Update non-interpolated properties directly
                     remoteSnake.score = sp.score;
-                    remoteSnake.cashBalance = sp.cashBalance; 
+                    remoteSnake.cashBalance = sp.cashBalance;
                     remoteSnake.alive = sp.alive;
-                    remoteSnake.color = sp.color; 
-                    remoteSnake.angle = sp.angle;
-                    remoteSnake.targetAngle = sp.angle; 
+                    remoteSnake.color = sp.color;
                     remoteSnake.boosting = sp.boosting;
                     remoteSnake.invincible = sp.invincible;
                     remoteSnake.username = sp.username || `Snake-${sp.id.substring(0,4)}`;
-                     // Update size based on server data if available, otherwise it's calculated via cashBalance
-                    if(sp.size) remoteSnake.currentSizeFromServer = sp.size; // Store it if needed, getter will use cashBalance
+                    if (sp.length) remoteSnake.length = sp.length; // If server sends length
+                    // remoteSnake.size is a getter, will update with cashBalance
                 }
             }
         });
@@ -5676,10 +5861,15 @@ class Game {
         // Update items from server
         this.food = serverState.food || [];
         this.glowOrbs = serverState.glowOrbs || [];
-        // For warfare_pvp, you'd also update:
-        // this.weapons = serverState.weapons || [];
-        // this.ammo = serverState.ammo || [];
-        // this.powerups = serverState.powerups || [];
+        this.projectiles = serverState.projectiles || []; // Process projectiles from server
+
+        // Process weapon items on the ground from server for PvP modes
+        if (this.isMultiplayer) {
+            this.weaponItems = serverState.weaponItems || [];
+            // Note: client-side this.weapons, this.ammo, this.powerups are primarily for single-player 'warfare'.
+            // In multiplayer, if these items are pickups, they should also come from serverState.
+            // For now, only explicitly handling weaponItems for PvP pickups.
+        }
     }
 
 
@@ -5992,13 +6182,20 @@ class Game {
             // Get ammo inventory
             const ammoInventory = this.getAmmoInventory();
 
+            // Get current weapon info for UI
+            const currentWeaponInfo = this.currentWeapon ? {
+                type: this.currentWeapon.name,
+                ammo: this.currentWeapon.maxAmmo === Infinity ? '∞' : this.currentWeapon.currentAmmo
+            } : null;
+
             this.onStateUpdate({
                 score: this.score, // Score for classic mode, cash for warfare mode
                 cashBalance: this.cashBalance, // Always show cash balance
                 length: this.player.length,
                 boost: this.player.boost,
-                weapon: this.currentWeapon ? this.currentWeapon.name : 'None',
-                weaponAmmo: this.currentWeapon ?
+                weapon: this.currentWeapon ? this.currentWeapon.name : 'None', // Legacy, keep for now
+                currentWeaponInfo: currentWeaponInfo, // New detailed weapon info for UI
+                weaponAmmo: this.currentWeapon ? // Legacy, keep for now
                     (this.currentWeapon.maxAmmo === Infinity ? '∞' : `${this.currentWeapon.currentAmmo}/${this.currentWeapon.maxAmmo}`) :
                     '0/0',
                 weaponTier: this.currentWeapon ? `Tier ${this.currentWeapon.tier}` : 'None',
@@ -6008,7 +6205,7 @@ class Game {
                 cooldownProgress: cooldownProgress,
                 ammoInventory: ammoInventory,
                 isGameOver: !this.gameRunning || this.cashedOut, // Include cashout state
-                finalScore: this.gameMode === 'warfare' ? this.cashBalance : this.score,
+                finalScore: (this.gameMode === 'warfare' || this.gameMode === 'warfare_pvp') ? this.cashBalance : this.score,
                 finalLength: this.player.length,
                 cashedOut: this.cashedOut, // Preserve cashout state
                 cashoutAmount: this.cashoutBalance // Preserve cashout amount
@@ -6018,42 +6215,63 @@ class Game {
 }
 
 class Snake {
-    constructor(x, y, color, isPlayer = false) {
+    constructor(x, y, color, isPlayer = false, id = null, username = 'Snake', gameInstance = null) {
+        this.id = id;
+        this.username = username;
+        this.gameInstance = gameInstance;
+
         this.x = x;
         this.y = y;
         this.color = color;
         this.isPlayer = isPlayer;
         this.baseSize = 8;
-        this.speed = 4; // Increased from 2 to 4 for faster base movement
-        this.baseSpeed = 4; // Store base speed for calculations
-        this.speedMultiplier = 1.0; // Speed multiplier from food (100% = 1.0)
+        this.speed = 4;
+        this.baseSpeed = 4;
+        this.speedMultiplier = 1.0;
         this.angle = Math.random() * Math.PI * 2;
         this.targetAngle = this.angle;
         this.alive = true;
         this.boost = 100;
         this.maxBoost = 100;
-        this.boostCapRemoved = false; // Track if boost cap has been removed by food
+        this.boostCapRemoved = false;
 
-        // Snake segments - Start with just head, growth is cash-based
         this.segments = [{ x: x, y: y, health: 100, maxHealth: 100 }];
+        this.pathHistory = [{ x: x, y: y }];
+        this.maxPathLength = 1000;
+        this.pathRecordDistance = 2;
 
-        // Path tracking for continuous movement in classic mode
-        this.pathHistory = [{ x: x, y: y }]; // Store head's movement path, start with initial position
-        this.maxPathLength = 1000; // Increased for larger snakes
-        this.pathRecordDistance = 2; // Only record path points when head moves this distance
+        this.growthProgress = 0;
+        this.growthRate = 0.02;
 
-        // Growth system - cash-based growth
-        this.growthProgress = 0; // Progress toward next segment (0-1)
-        this.growthRate = 0.02; // How fast to grow each frame
-
-        // Invincibility system for new spawns
         this.invincible = false;
         this.invincibilityEndTime = 0;
-        this.blinkPhase = 0; // For blinking animation
-        this.shrinkProgress = 0; // Progress toward shrinking
-        this.growthQueue = 0; // Queue for growth from food consumption
+        this.blinkPhase = 0;
+        this.shrinkProgress = 0;
+        this.growthQueue = 0;
 
-        // AI Weapon System (for non-player snakes)
+        this.score = 0;
+        this.cashBalance = 0;
+        this.wager = 0;
+
+        // Multiplayer smoothing properties for remote snakes
+        if (!this.isPlayer && this.gameInstance && this.gameInstance.isMultiplayer) {
+            this.serverX = x;
+            this.serverY = y;
+            this.serverAngle = this.angle;
+            this.serverSegments = JSON.parse(JSON.stringify(this.segments));
+            this.lastServerUpdateTime = 0;
+            this.interpolationStartTime = 0;
+            this.interpolationDelay = 100; // ms, adjust based on typical server update rate
+        }
+
+        // Local player reconciliation properties
+        if (this.isPlayer && this.gameInstance && this.gameInstance.isMultiplayer) {
+            this.serverAuthoritativeX = x;
+            this.serverAuthoritativeY = y;
+            // this.serverAuthoritativeAngle = this.angle; // If server also dictates angle strictly
+        }
+
+        // AI Weapon System (for non-player snakes, or potentially server-controlled player weapon state)
         if (!isPlayer) {
             this.weaponInventory = {
                 primaryWeapon: null,
@@ -6095,20 +6313,27 @@ class Snake {
         this.powerupInventory = []; // Collected powerups not yet activated
 
         // Gambling system properties
-        this.wager = 0; // Snake's wager amount
-        this.cashValue = 0; // Total cash value of this snake
+        this.wager = 0;
+        this.cashValue = 0;
+        // score and cashBalance are initialized above, potentially overridden by server state later
     }
 
     get size() {
-        // Size directly correlates to cash balance - no cap on growth
-        const cashBalance = this.isPlayer ?
-            (this.gameInstance ? this.gameInstance.cashBalance : 50) :
-            (this.collectedCash || 50);
+        let currentCash = this.cashBalance; // Use snake's own cashBalance by default
+        if (this.isPlayer && this.gameInstance) { // Local player's cash might be tracked on Game instance
+            currentCash = this.gameInstance.cashBalance;
+        } else if (!this.isPlayer) { // AI or remote player
+             // For AI, collectedCash might be used. For remote, cashBalance is updated from server.
+            currentCash = this.collectedCash || this.cashBalance || 0;
+        }
 
-        // Base size + cash-based scaling (no cap)
-        const cashMultiplier = Math.sqrt(cashBalance / 10); // Smooth scaling
-        return this.baseSize + cashMultiplier * 2; // Direct cash-to-size correlation
+        if (typeof currentCash !== 'number' || isNaN(currentCash)) {
+            currentCash = this.wager || 50; // Fallback to wager or a default if cash is invalid
+        }
+        const cashMultiplier = Math.sqrt(Math.max(0, currentCash) / 10);
+        return this.baseSize + cashMultiplier * 2;
     }
+
 
     getGame() {
         // Helper method to get game instance (will be set by game)
@@ -6144,78 +6369,106 @@ class Snake {
     update(boosting = false) {
         if (!this.alive) return;
 
-        // Smooth angle transition
-        let angleDiff = this.targetAngle - this.angle;
-        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        const isMultiplayerGame = this.gameInstance && this.gameInstance.isMultiplayer;
 
-        this.angle += angleDiff * 0.1;
+        if (this.isPlayer || !isMultiplayerGame) { // Local player or single player game
+            let angleDiff = this.targetAngle - this.angle;
+            // Normalize angle difference to be between -PI and PI
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            this.angle += angleDiff * 0.1; // Smooth angle transition
 
-        // Handle boosting
-        let currentSpeed = this.baseSpeed * this.speedMultiplier; // Apply food speed multiplier
-        if (boosting && this.boost > 0) {
-            currentSpeed *= 2.5; // Increased from 2 to 2.5 for faster boost speed
-            this.boost -= 0.4; // Reduced from 1 to 0.4 for longer boost duration
-
-            // If boost reaches 0 and cap was removed, restore the cap
-            if (this.boost <= 0 && this.boostCapRemoved) {
-                this.boostCapRemoved = false;
-            }
-        } else if (!boosting) {
-            // Natural regeneration only goes up to maxBoost (100%)
-            // Only food can push boost beyond 100%
-            if (this.boost < this.maxBoost) {
+            let currentSpeed = this.baseSpeed * this.speedMultiplier;
+            if (boosting && this.boost > 0) {
+                currentSpeed *= 2.5;
+                this.boost -= 0.4;
+                if (this.boost <= 0 && this.boostCapRemoved) this.boostCapRemoved = false;
+            } else if (!boosting && this.boost < this.maxBoost) {
                 this.boost += 0.5;
             }
-        }
+            currentSpeed *= this.getSpeedMultiplier();
 
-        // Apply powerup speed multipliers (like battering ram)
-        currentSpeed *= this.getSpeedMultiplier();
+            this.x += Math.cos(this.angle) * currentSpeed;
+            this.y += Math.sin(this.angle) * currentSpeed;
 
-        // Move head
-        this.x += Math.cos(this.angle) * currentSpeed;
-        this.y += Math.sin(this.angle) * currentSpeed;
+            // Local player reconciliation (Part 2)
+            if (this.isPlayer && isMultiplayerGame && this.serverAuthoritativeX !== undefined) {
+                const correctionFactor = 0.15;
+                this.x = lerp(this.x, this.serverAuthoritativeX, correctionFactor);
+                this.y = lerp(this.y, this.serverAuthoritativeY, correctionFactor);
+                // Angle reconciliation can be added if server dictates angle more strictly
+                // if (this.serverAuthoritativeAngle !== undefined) {
+                //    this.angle = lerpAngle(this.angle, this.serverAuthoritativeAngle, correctionFactor);
+                // }
+            }
 
-        // Keep in world bounds
-        this.x = Math.max(this.size, Math.min(4000 - this.size, this.x));
-        this.y = Math.max(this.size, Math.min(4000 - this.size, this.y));
+        } else { // Remote player in a multiplayer game: use interpolation
+            const now = Date.now();
+            if (this.lastServerUpdateTime === 0) { // First server update for this snake
+                this.x = this.serverX;
+                this.y = this.serverY;
+                this.angle = this.serverAngle;
+                this.segments = JSON.parse(JSON.stringify(this.serverSegments));
+                this.interpolationStartTime = now;
+                this.lastServerUpdateTime = now; // Mark as updated to avoid repeated snapping
+            } else {
+                const timeSinceLastServerUpdate = now - this.lastServerUpdateTime;
+                // If too much time passed or no new updates, snap to last known server state
+                if (timeSinceLastServerUpdate > this.interpolationDelay * 3 ) {
+                     this.x = this.serverX;
+                     this.y = this.serverY;
+                     this.angle = this.serverAngle;
+                     this.segments = JSON.parse(JSON.stringify(this.serverSegments));
+                     this.interpolationStartTime = now; // Reset for next potential interpolation
+                } else {
+                    const t = Math.min(1, (now - this.interpolationStartTime) / this.interpolationDelay);
+                    this.x = lerp(this.x, this.serverX, t);
+                    this.y = lerp(this.y, this.serverY, t);
+                    this.angle = lerpAngle(this.angle, this.serverAngle, t);
 
-        // Update head position
-        this.segments[0].x = this.x;
-        this.segments[0].y = this.y;
-
-        // Track head's path for continuous movement (classic mode)
-        if (this.gameInstance && this.gameInstance.gameMode === 'classic') {
-            // Only record path points when head moves a significant distance
-            const lastPoint = this.pathHistory[this.pathHistory.length - 1];
-            const distance = Math.hypot(this.x - lastPoint.x, this.y - lastPoint.y);
-
-            if (distance >= this.pathRecordDistance) {
-                this.pathHistory.push({ x: this.x, y: this.y });
-
-                // Limit path history length
-                if (this.pathHistory.length > this.maxPathLength) {
-                    this.pathHistory.shift();
+                    // Segment snapping/following for remote snakes
+                    if (this.segments.length !== this.serverSegments.length || t >= 0.95) { // Snap if count differs or near end of interpolation
+                        this.segments = JSON.parse(JSON.stringify(this.serverSegments));
+                    }
                 }
             }
         }
 
-        // Handle natural growth
+        // Common logic for all snakes (local or remote, single or multi)
+        const worldWidth = this.gameInstance ? this.gameInstance.worldWidth : 4000;
+        const worldHeight = this.gameInstance ? this.gameInstance.worldHeight : 4000;
+        this.x = Math.max(this.size, Math.min(worldWidth - this.size, this.x));
+        this.y = Math.max(this.size, Math.min(worldHeight - this.size, this.y));
+
+        this.segments[0].x = this.x;
+        this.segments[0].y = this.y;
+
+        // Path history only for local player or single player AI for their own segment updates
+        // Remote players' segments are handled by server state + interpolation/snapping
+        if (this.isPlayer || !isMultiplayerGame) {
+            const gameModeForPath = this.gameInstance ? this.gameInstance.gameMode : 'classic';
+            if (gameModeForPath === 'classic' || gameModeForPath === 'classic_pvp') { // classic_pvp local player needs path
+                const lastPoint = this.pathHistory[this.pathHistory.length - 1];
+                if (Math.hypot(this.x - lastPoint.x, this.y - lastPoint.y) >= this.pathRecordDistance) {
+                    this.pathHistory.push({ x: this.x, y: this.y });
+                    if (this.pathHistory.length > this.maxPathLength) this.pathHistory.shift();
+                }
+            }
+        }
+
         this.handleGrowth();
-
-        // Update powerups
         this.updatePowerups();
-
-        // Update invincibility
         this.updateInvincibility();
 
-        // Update body segments - different behavior for classic vs warfare mode
-        if (this.gameInstance && this.gameInstance.gameMode === 'classic') {
-            // Classic mode: Continuous path following
-            this.updateSegmentsClassicMode();
-        } else {
-            // Warfare mode: Fluid/jelly-like movement
-            this.updateSegmentsWarfareMode();
+        // Segment update logic
+        const gameModeForSegments = this.gameInstance ? this.gameInstance.gameMode : 'classic';
+
+        // For remote snakes, segments are either snapped directly or follow the interpolated head.
+        // For local/single-player, they follow the directly updated head.
+        if (gameModeForSegments === 'classic' || gameModeForSegments === 'classic_pvp') {
+            this.updateSegmentsClassicMode(); // This needs to work for interpolated heads too
+        } else { // warfare, warfare_pvp
+            this.updateSegmentsWarfareMode(); // This needs to work for interpolated heads too
         }
     }
 

@@ -33,6 +33,9 @@ const PVP_FOOD_REGEN_COUNT = 50;
 const PVP_GLOW_ORB_THRESHOLD = 10;
 const PVP_GLOW_ORB_REGEN_COUNT = 5;
 
+// Projectile constants
+const PROJECTILE_LIFETIME = 2000; // milliseconds
+
 // Helper to generate a single food item
 function generateSingleFoodItem() {
   return {
@@ -77,6 +80,62 @@ const gameLoop = (roomId) => {
     }
   }
 
+  // Server-side projectile vs player collision detection for warfare_pvp
+  if (room.gameMode === 'warfare_pvp') {
+    for (let i = room.projectiles.length - 1; i >= 0; i--) {
+      const projectile = room.projectiles[i];
+      let projectileConsumed = false;
+
+      for (const targetSnake of room.players.values()) {
+        if (!(targetSnake instanceof Snake) || !targetSnake.alive || targetSnake.id === projectile.ownerId || targetSnake.isInvincible()) {
+          continue;
+        }
+
+        for (let j = 0; j < targetSnake.segments.length; j++) {
+          const segment = targetSnake.segments[j];
+          const dx = projectile.x - segment.x;
+          const dy = projectile.y - segment.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          const projectileRadius = projectile.size || 3; // Default projectile radius if not specified
+          const segmentRadius = targetSnake.size / 2; // Approximate segment radius
+
+          if (distance < projectileRadius + segmentRadius) {
+            const damageResult = targetSnake.takeDamage(projectile.damage, j);
+
+            // console.log(`Projectile by ${projectile.ownerId} hit ${targetSnake.id} at segment ${j}. Damage: ${projectile.damage}. Died: ${damageResult.died}. BrokeAt: ${damageResult.brokeAt}`);
+
+            room.projectiles.splice(i, 1); // Remove projectile
+            projectileConsumed = true;
+
+            if (damageResult.died) {
+              // console.log(`Snake ${targetSnake.id} died.`);
+              // Convert all segments if snake died, or just broken ones if specified.
+              // takeDamage should return all segments if it was a headshot leading to death.
+              const segmentsToConvert = damageResult.brokenSegments && damageResult.brokenSegments.length > 0 ? damageResult.brokenSegments : targetSnake.segments;
+              const newFood = targetSnake.convertToFoodItems(segmentsToConvert);
+              room.food.push(...newFood);
+              targetSnake.segments = []; // Ensure snake has no segments left
+              targetSnake.length = 0; // Explicitly set length to 0
+              // Player will be marked as not alive by takeDamage
+            } else if (damageResult.brokeAt !== null) {
+              // Segments broke but snake might still be alive
+              // damageResult.brokenSegments contains the segments that were broken off by takeDamage/breakSegments
+              if (damageResult.brokenSegments && damageResult.brokenSegments.length > 0) {
+                const newFood = targetSnake.convertToFoodItems(damageResult.brokenSegments);
+                room.food.push(...newFood);
+                // targetSnake.segments and targetSnake.length are updated within the Snake class methods
+              }
+            }
+            break; // Break from segment loop for this targetSnake
+          }
+        }
+        if (projectileConsumed) break; // Break from player loop (projectile is gone)
+      }
+      // No continue here, the loop decrement handles moving to the next projectile
+    }
+  }
+
   // Update all player positions based on their inputs
   room.players.forEach((player) => {
     if (player instanceof Snake) {
@@ -85,16 +144,61 @@ const gameLoop = (roomId) => {
           player.targetAngle = player.input.targetAngle;
         }
         const boosting = player.input.boosting || false;
-        player.update(boosting);
+        player.update(boosting); // Call Snake's update method for physics and state
+
+        // Warfare PvP: Handle shooting input
+        if (room.gameMode === 'warfare_pvp' && player.input.shooting && player.alive) {
+          const shotAttemptResult = player.fireWeapon(); // Call the fireWeapon method
+          if (shotAttemptResult && shotAttemptResult.fired) {
+            const newProjectile = {
+              id: uuidv4(),
+              ownerId: shotAttemptResult.ownerId,
+              weaponType: shotAttemptResult.weaponType,
+              x: shotAttemptResult.x,
+              y: shotAttemptResult.y,
+              angle: shotAttemptResult.angle,
+              speed: shotAttemptResult.config.projectileSpeed || 10, // Default speed if not in config
+              damage: shotAttemptResult.config.damage || 1,       // Default damage if not in config
+              size: shotAttemptResult.config.projectileSize || 4, // Default size if not in config
+              creationTime: Date.now(),
+              vx: Math.cos(shotAttemptResult.angle) * (shotAttemptResult.config.projectileSpeed || 10),
+              vy: Math.sin(shotAttemptResult.angle) * (shotAttemptResult.config.projectileSpeed || 10),
+            };
+            room.projectiles.push(newProjectile);
+            // console.log(`Projectile ${newProjectile.id} created for player ${player.username}. Pos: ${newProjectile.x.toFixed(0)},${newProjectile.y.toFixed(0)}`);
+          }
+        }
+
       } else {
-        player.update(false); 
+        // Still call update for physics (e.g. segment following) even without new input
+        player.update(false);
       }
-    } else { 
+    } else {
+      // This branch is for non-Snake player objects (e.g. original non-PvP modes)
       if (player.input) {
-        updatePlayerState(player); 
+        updatePlayerState(player); // Original simple update for non-Snake objects
       }
     }
   });
+
+  // Update projectiles for warfare_pvp mode
+  if (room.gameMode === 'warfare_pvp') {
+    for (let i = room.projectiles.length - 1; i >= 0; i--) {
+      const proj = room.projectiles[i];
+      proj.x += proj.vx;
+      proj.y += proj.vy;
+
+      // Despawn projectiles that are too old or out of bounds
+      const worldWidth = 4000; // Assuming world dimensions, should be configurable via room or constants
+      const worldHeight = 4000;
+      if (Date.now() - proj.creationTime > PROJECTILE_LIFETIME ||
+          proj.x < 0 || proj.x > worldWidth ||
+          proj.y < 0 || proj.y > worldHeight) {
+        room.projectiles.splice(i, 1);
+        // console.log(`Projectile ${proj.id} despawned due to age or out of bounds.`);
+      }
+    }
+  }
 
   // Server-side item collision detection and collection for PvP modes
   if (room.gameMode === 'classic_pvp' || room.gameMode === 'warfare_pvp') {
@@ -154,7 +258,7 @@ const gameLoop = (roomId) => {
           const dy = headA.y - segmentB.y;
           // Using playerA.size for its head, and playerB.size for segment radius (approximation)
           const collisionThreshold = (playerA.size || 8) + (playerB.size || 8) - 4; // Minus a bit for closer feel
-          
+
           if (dx * dx + dy * dy < collisionThreshold * collisionThreshold) {
             if (playerB.isInvincible()) continue; // Cannot die by hitting an invincible player's body (unless B is also A)
 
@@ -168,7 +272,7 @@ const gameLoop = (roomId) => {
         }
         if (!playerA.alive) break; // If playerA died, move to the next playerA
       }
-      
+
       // Head-to-Head Collision Check (if playerA is still alive)
       // This needs to be careful to avoid processing twice for the same pair
       if (playerA.alive && i < playerList.length -1) { // Only check if i < j to avoid duplicate pairs and self-check
@@ -190,11 +294,11 @@ const gameLoop = (roomId) => {
 
                 if(playerA.isInvincible()) playerADies = false;
                 if(playerB.isInvincible()) playerBDies = false;
-                
+
                 // If both are invincible, nothing happens (already continued). If one is, the other dies.
                 // If neither is, determine by size or both die. For classic, usually both die or smaller one.
                 // Simple rule: if not invincible, you die in head-to-head.
-                
+
                 if (playerADies) {
                     playerA.alive = false;
                     const foodA = playerA.convertToFoodItems();
@@ -236,9 +340,9 @@ const gameLoop = (roomId) => {
           speed: p.speed,
           invincible: p.isInvincible ? p.isInvincible() : false, // current invincibility state
           // activePowerups: p.activePowerups || [], // Omitted for now as per subtask instructions
-          currentWeapon: p.currentWeapon ? { 
-            name: p.currentWeapon.name, 
-            type: p.currentWeapon.type, 
+          currentWeapon: p.currentWeapon ? {
+            name: p.currentWeapon.name,
+            type: p.currentWeapon.type,
             // tier: p.currentWeapon.tier // Tier might not be on simplified server Weapon
           } : null,
         };
@@ -266,7 +370,8 @@ const gameLoop = (roomId) => {
       }
     }),
     food: room.food, // Send full food array
-    glowOrbs: room.glowOrbs // Send full glowOrbs array
+    glowOrbs: room.glowOrbs, // Send full glowOrbs array
+    projectiles: room.projectiles // Send current projectiles for warfare_pvp
   });
 };
 
@@ -320,7 +425,7 @@ io.on('connection', (socket) => {
         worldHeight: 4000,
         // Define a way for Snake to get its cashBalance if it's managed by gameInstance
         // For now, cashBalance will be set directly on the snake instance by the server code below
-        getPlayerCashBalance: (snakeInstance) => snakeInstance.cashBalance, 
+        getPlayerCashBalance: (snakeInstance) => snakeInstance.cashBalance,
       };
       player = new Snake(initialX, initialY, color, true, socket.id, username, gameInstanceMock);
       player.wager = wager || 0;
@@ -421,6 +526,7 @@ function createGameRoom(gameMode) {
     players: new Map(),
     food: generateInitialFood(),
     glowOrbs: generateInitialGlowOrbs(),
+    projectiles: [], // Initialize projectiles array for the room
     gameLoopInterval: null
   });
   return roomId;

@@ -1,11 +1,13 @@
 import React from 'react';
 import { GameMode } from '../App';
 import { GameState } from './GameContainer';
+import Scoreboard, { PlayerData } from './Scoreboard'; // Import Scoreboard and PlayerData
 
 interface GameUIProps {
-  gameState: GameState;
+  gameState: GameState & { players?: PlayerData[] }; // Ensure players array is part of gameState type
   gameMode: GameMode;
   onCashOut?: () => void;
+  localPlayerId?: string | null; // Add localPlayerId
 }
 
 // Helper function to get ammo type icons
@@ -155,6 +157,23 @@ const GameUI: React.FC<GameUIProps> = ({ gameState, gameMode, onCashOut }) => {
             <span className="control-hint neon-text neon-cyan">1-3: Switch | Q: Quick Switch</span>
           </div>
         </div>
+      )}
+
+      {/* Display Current Weapon for warfare_pvp */}
+      {gameMode === 'warfare_pvp' && gameState.currentWeaponInfo && (
+          <div className="weapon-display" style={{ position: 'absolute', bottom: '10px', right: '10px', color: 'white', backgroundColor: 'rgba(0,0,0,0.5)', padding: '5px', borderRadius: '5px', fontFamily: 'monospace', fontSize: '14px' }}>
+              <p style={{margin: '2px 0'}}>Weapon: {gameState.currentWeaponInfo.type}</p>
+              <p style={{margin: '2px 0'}}>Ammo: {String(gameState.currentWeaponInfo.ammo)}</p>
+          </div>
+      )}
+
+      {/* Scoreboard Integration */}
+      {gameState.players && (
+        <Scoreboard
+          players={gameState.players}
+          localPlayerId={localPlayerId}
+          gameMode={gameMode}
+        />
       )}
     </>
   );
