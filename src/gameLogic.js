@@ -1509,15 +1509,7 @@ class Game {
             this.score = this.cashBalance;
         }
 
-        // Multiplayer system - replace AI snakes with remote players
-        this.remotePlayers = []; // Other players in the same room
-        this.isMultiplayer = true; // Enable multiplayer mode
-        this.roomId = null; // Current room ID
-        this.playerId = null; // This player's unique ID
-        this.realtimeChannel = null; // Supabase realtime channel
-        this.multiplayerService = null; // Reference to multiplayer service
-
-        this.aiSnakes = []; // Keep for compatibility but won't be used in multiplayer
+        this.aiSnakes = [];
         this.food = [];
         this.glowOrbs = [];
 
@@ -1552,11 +1544,32 @@ class Game {
     }
 
     init() {
-        console.log('Initializing multiplayer game...');
+        console.log('Initializing game...');
 
-        // MULTIPLAYER MODE: No AI snakes - only real players
-        console.log('🌐 Multiplayer mode enabled - AI snakes disabled');
-        console.log('🎮 Waiting for other players to join the room...');
+        // Create AI snakes - increased count for better gameplay
+        const aiCount = this.gameMode === 'warfare' ? 15 : 18;
+        console.log(`Creating ${aiCount} AI snakes for ${this.gameMode} mode`);
+
+        for (let i = 0; i < aiCount; i++) {
+            const x = Math.random() * this.worldWidth;
+            const y = Math.random() * this.worldHeight;
+            const colors = ['#ff0080', '#00ff41', '#00ffff', '#ff8000', '#8000ff', '#ffff00', '#ff4444', '#44ff44', '#4444ff'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const aiSnake = new Snake(x, y, color, false);
+            aiSnake.gameInstance = this; // Set game reference
+
+            // Set random wager for AI snakes in both modes (gambling mechanics in both)
+            aiSnake.wager = this.availableWagers[Math.floor(Math.random() * this.availableWagers.length)];
+            // Give AI starting cash equal to their wager
+            aiSnake.collectedCash = aiSnake.wager;
+            this.updateSnakeCashValue(aiSnake);
+
+            // Activate spawn invincibility for AI snake
+            aiSnake.activateSpawnInvincibility(aiSnake.wager);
+
+            this.aiSnakes.push(aiSnake);
+            console.log(`Created AI snake ${i + 1}: ${aiSnake.aiPersonality?.name || 'Classic'} at (${Math.round(x)}, ${Math.round(y)}) with wager $${aiSnake.wager || 0}`);
+        }
 
         // Initialize warfare mode if selected
         if (this.gameMode === 'warfare') {
@@ -1958,8 +1971,8 @@ class Game {
         // Update player
         this.updatePlayer();
 
-        // Update remote players (multiplayer)
-        this.updateRemotePlayers();
+        // Update AI snakes
+        this.aiSnakes.forEach(snake => this.updateAISnake(snake));
 
         // Update glow orbs
         this.updateGlowOrbs();
@@ -2121,10 +2134,8 @@ class Game {
                         return false;
                     }
 
-                    // Check collisions with snakes (use remote players in multiplayer)
-                    const allSnakes = this.isMultiplayer ?
-                        [this.player, ...this.remotePlayers].filter(s => s.alive) :
-                        [this.player, ...this.aiSnakes].filter(s => s.alive);
+                    // Check collisions with snakes
+                    const allSnakes = [this.player, ...this.aiSnakes].filter(s => s.alive);
                     for (const snake of allSnakes) {
                         // Skip collision with projectile owner (no friendly fire)
                         if (snake === projectile.owner) {
@@ -2132,9 +2143,7 @@ class Game {
                         }
 
                         // Check if snake is invincible
-                        // Remote players don't have isInvincible method
-                        const isInvincible = (typeof snake.isInvincible === 'function') ? snake.isInvincible() : (snake.isInvincible || false);
-                        if (isInvincible) {
+                        if (snake.isInvincible()) {
                             console.log('Projectile hit invincible snake, no damage dealt');
                             continue; // Skip damage for invincible snakes
                         }
@@ -2146,9 +2155,7 @@ class Game {
 
                         if (headDist < snake.size) {
                             // Check for helmet protection first
-                            // Remote players don't have damageHelmet method
-                            const helmetDamageResult = (typeof snake.damageHelmet === 'function') ?
-                                snake.damageHelmet(projectile.damage * 25) : null;
+                            const helmetDamageResult = snake.damageHelmet(projectile.damage * 25);
 
                             if (helmetDamageResult !== null) {
                                 // Helmet absorbed the damage
@@ -2160,9 +2167,7 @@ class Game {
                             }
 
                             // No helmet or helmet destroyed, check other head protection
-                            // Remote players don't have getHeadProtection method
-                            const headProtection = (typeof snake.getHeadProtection === 'function') ?
-                                snake.getHeadProtection() : 0;
+                            const headProtection = snake.getHeadProtection();
                             const survives = Math.random() < headProtection;
 
                             if (survives) {
@@ -2204,9 +2209,7 @@ class Game {
 
                             if (dist < snake.size) {
                                 // Apply damage reduction from defensive powerups
-                                // Remote players don't have getDamageReduction method
-                                const damageReduction = (typeof snake.getDamageReduction === 'function') ?
-                                    snake.getDamageReduction() : 0;
+                                const damageReduction = snake.getDamageReduction();
                                 const baseDamage = projectile.damage * 25; // Scale damage for health system
                                 const finalDamage = baseDamage * (1 - damageReduction);
 
@@ -2336,10 +2339,7 @@ class Game {
 
         // Decision making frequency (AI thinks every 100-300ms based on personality)
         if (now - snake.lastDecisionTime < snake.reactionTime) {
-            // Remote players don't have update method
-            if (typeof snake.update === 'function') {
-                snake.update(snake.shouldBoost);
-            }
+            snake.update(snake.shouldBoost);
             return;
         }
         snake.lastDecisionTime = now;
@@ -2363,15 +2363,10 @@ class Game {
         }
 
         // Handle shooting (only if not invincible)
-        // Remote players don't have isInvincible method
-        const isInvincible = (typeof snake.isInvincible === 'function') ? snake.isInvincible() : (snake.isInvincible || false);
-        if (action.shoot && action.shootTarget && !isInvincible) {
-            // Remote players don't have shoot method
-            if (typeof snake.shoot === 'function') {
-                const projectile = snake.shoot(action.shootTarget.x, action.shootTarget.y);
-                if (projectile) {
-                    this.projectiles.push(projectile);
-                }
+        if (action.shoot && action.shootTarget && !snake.isInvincible()) {
+            const projectile = snake.shoot(action.shootTarget.x, action.shootTarget.y);
+            if (projectile) {
+                this.projectiles.push(projectile);
             }
         }
 
@@ -2382,10 +2377,7 @@ class Game {
 
         // Update snake with boost decision
         snake.shouldBoost = action.boost;
-        // Remote players don't have update method
-        if (typeof snake.update === 'function') {
-            snake.update(action.boost);
-        }
+        snake.update(action.boost);
     }
 
     // AI Situation Assessment
@@ -2553,16 +2545,9 @@ class Game {
 
     convertSnakeToCoins(snake) {
         // Get the snake's actual cash balance at the moment of death
-        let totalCashValue;
-        if (snake.isPlayer) {
-            totalCashValue = this.cashBalance;
-        } else if (this.isMultiplayer) {
-            // Remote players store cash in cashBalance property
-            totalCashValue = snake.cashBalance || 0;
-        } else {
-            // AI snakes store cash in collectedCash property
-            totalCashValue = snake.collectedCash || 0;
-        }
+        const totalCashValue = snake.isPlayer ?
+            this.cashBalance :
+            (snake.collectedCash || 0);
 
         // Reduce snake's cash balance to zero (they lost everything)
         if (snake.isPlayer) {
@@ -2571,8 +2556,6 @@ class Game {
             if (this.gameMode === 'warfare') {
                 this.score = this.cashBalance;
             }
-        } else if (this.isMultiplayer) {
-            snake.cashBalance = 0; // Remote player loses all cash on death
         } else {
             snake.collectedCash = 0; // AI loses all cash on death
         }
@@ -2581,12 +2564,11 @@ class Game {
         const totalCoins = snake.segments.length * 4; // 4 coins per segment for good distribution
         const valuePerCoin = Math.max(1, Math.floor(totalCashValue / totalCoins)); // Minimum $1 per coin
 
-        const createdCoins = [];
         snake.segments.forEach((segment) => {
             // Create multiple coins per segment for better collection
             const coinsPerSegment = 4; // Consistent number of coins per segment
             for (let i = 0; i < coinsPerSegment; i++) {
-                const coin = {
+                this.coins.push({
                     x: segment.x + (Math.random() - 0.5) * 40,
                     y: segment.y + (Math.random() - 0.5) * 40,
                     value: valuePerCoin,
@@ -2595,35 +2577,10 @@ class Game {
                     collected: false,
                     bobPhase: Math.random() * Math.PI * 2,
                     sparklePhase: Math.random() * Math.PI * 2,
-                    creationTime: Date.now(),
-                    id: `${segment.x}_${segment.y}_${Date.now()}_${i}` // Unique ID for multiplayer sync
-                };
-                this.coins.push(coin);
-                createdCoins.push(coin);
+                    creationTime: Date.now()
+                });
             }
         });
-
-        // Broadcast death event and coin creation in multiplayer
-        if (this.isMultiplayer && !snake.isPlayer && this.multiplayerService) {
-            this.multiplayerService.broadcastGameEvent({
-                type: 'player_death',
-                playerId: snake.id || 'unknown',
-                data: {
-                    playerId: snake.id || 'unknown',
-                    username: snake.username || 'Unknown Player',
-                    totalCashValue: totalCashValue,
-                    coins: createdCoins.map(coin => ({
-                        id: coin.id,
-                        x: coin.x,
-                        y: coin.y,
-                        value: coin.value,
-                        size: coin.size,
-                        creationTime: coin.creationTime
-                    }))
-                },
-                timestamp: Date.now()
-            });
-        }
 
         console.log(`Snake died with $${totalCashValue} cash, created ${totalCoins} coins worth $${valuePerCoin} each (total: $${totalCoins * valuePerCoin})`);
     }
@@ -2683,10 +2640,8 @@ class Game {
         const now = Date.now();
         this.coins = this.coins.filter(coin => !coin.collected && (now - coin.creationTime) < 30000);
 
-        // Check coin collisions with all snakes (use remote players in multiplayer)
-        const allSnakes = this.isMultiplayer ?
-            [this.player, ...this.remotePlayers].filter(s => s.alive) :
-            [this.player, ...this.aiSnakes].filter(s => s.alive);
+        // Check coin collisions with all snakes
+        const allSnakes = [this.player, ...this.aiSnakes].filter(s => s.alive);
 
         this.coins.forEach(coin => {
             if (coin.collected) return;
@@ -2706,29 +2661,9 @@ class Game {
                         if (this.gameMode === 'warfare') {
                             this.score = this.cashBalance;
                         }
-
-                        // Broadcast coin collection in multiplayer
-                        if (this.isMultiplayer && this.multiplayerService) {
-                            this.multiplayerService.broadcastGameEvent({
-                                type: 'coin_collected',
-                                playerId: this.playerId || 'unknown',
-                                data: {
-                                    coinId: coin.id || `${coin.x}_${coin.y}_${coin.creationTime}`,
-                                    value: coin.value,
-                                    playerId: this.playerId
-                                },
-                                timestamp: Date.now()
-                            });
-                        }
                     } else {
-                        // AI snakes or remote players collect cash too
-                        if (this.isMultiplayer) {
-                            // Remote players handle their own cash
-                            snake.cashBalance = (snake.cashBalance || 0) + coin.value;
-                        } else {
-                            // AI snakes collect cash
-                            snake.collectedCash = (snake.collectedCash || 0) + coin.value;
-                        }
+                        // AI snakes collect cash too (for future features)
+                        snake.collectedCash = (snake.collectedCash || 0) + coin.value;
                     }
                 }
             });
@@ -3079,10 +3014,7 @@ class Game {
     }
 
     checkCollisions() {
-        // Use remote players in multiplayer, AI snakes otherwise
-        const allSnakes = this.isMultiplayer ?
-            [this.player, ...this.remotePlayers].filter(s => s.alive) :
-            [this.player, ...this.aiSnakes].filter(s => s.alive);
+        const allSnakes = [this.player, ...this.aiSnakes].filter(s => s.alive);
 
         // Check food collisions with vacuum effect
         allSnakes.forEach(snake => {
@@ -3130,28 +3062,20 @@ class Game {
                         }
                         this.updateGameState();
                     } else {
-                        // AI snakes or remote players also get benefits from food (same as player)
+                        // AI snakes also get benefits from food (same as player)
                         // Food gives 5% mass (growth) and 1% speed boost in both modes
                         const coinMassValue = 10; // What coins give for mass/length
                         const foodMassValue = coinMassValue * 0.05; // 5% of coin mass value
 
                         // Add mass/growth (no cap on snake growth)
-                        if (snake.growthQueue !== undefined) {
-                            snake.growthQueue += foodMassValue;
-                        }
+                        snake.growthQueue += foodMassValue;
 
                         // Add 1% speed boost (remove cap when collecting food)
-                        // Remote players don't have addSpeedBoost method
-                        if (typeof snake.addSpeedBoost === 'function') {
-                            snake.addSpeedBoost(1);
-                        } else if (this.isMultiplayer) {
-                            // For remote players, just update speedMultiplier directly
-                            snake.speedMultiplier = (snake.speedMultiplier || 1.0) + 0.01;
-                        }
+                        snake.addSpeedBoost(1);
 
                         // Food adds to boost percentage and removes cap
                         snake.boostCapRemoved = true; // Remove boost cap when collecting food
-                        snake.boost = Math.min((snake.boost || 0) + 5, 200); // Add 5% boost (cap at 200% for remote players)
+                        snake.boost += 5; // Add 5% boost (no cap when collecting food)
                     }
                 }
             }
@@ -3207,20 +3131,13 @@ class Game {
             }
         });
 
-        // Check snake vs snake collisions (use remote players in multiplayer)
-        const allSnakesForCollision = this.isMultiplayer ?
-            [this.player, ...this.remotePlayers].filter(s => s.alive) :
-            [this.player, ...this.aiSnakes].filter(s => s.alive);
-
-        allSnakesForCollision.forEach(snake => {
-            allSnakesForCollision.forEach(otherSnake => {
+        // Check snake vs snake collisions
+        allSnakes.forEach(snake => {
+            allSnakes.forEach(otherSnake => {
                 if (snake === otherSnake || !snake.alive || !otherSnake.alive) return;
 
                 // Check if either snake is invincible
-                // Remote players don't have isInvincible method
-                const snakeInvincible = (typeof snake.isInvincible === 'function') ? snake.isInvincible() : (snake.isInvincible || false);
-                const otherSnakeInvincible = (typeof otherSnake.isInvincible === 'function') ? otherSnake.isInvincible() : (otherSnake.isInvincible || false);
-                if (snakeInvincible || otherSnakeInvincible) {
+                if (snake.isInvincible() || otherSnake.isInvincible()) {
                     return; // Skip collision for invincible snakes
                 }
 
@@ -3231,10 +3148,8 @@ class Game {
                     const dist = Math.hypot(segment.x - snake.x, segment.y - snake.y);
                     if (dist < snake.size + otherSnake.size - 2) {
                         // Check for battering ram collision damage (only if attacker is not invincible)
-                        // Remote players don't have getBoostDamage method
-                        const batteringRamDamage = (typeof snake.getBoostDamage === 'function') ? snake.getBoostDamage() : 0;
-                        const snakeInvincible = (typeof snake.isInvincible === 'function') ? snake.isInvincible() : (snake.isInvincible || false);
-                        const isRamming = snake.boost < (snake.maxBoost || 100) && batteringRamDamage > 0 && !snakeInvincible; // Snake is boosting and has battering ram and not invincible
+                        const batteringRamDamage = snake.getBoostDamage();
+                        const isRamming = snake.boost < snake.maxBoost && batteringRamDamage > 0 && !snake.isInvincible(); // Snake is boosting and has battering ram and not invincible
 
                         if (isRamming) {
                             // Apply battering ram damage to the segment
@@ -3283,10 +3198,7 @@ class Game {
                                     this.updateSnakeCashValue(newSnake);
 
                                     // Activate spawn invincibility for respawned AI snake
-                                    // Remote players don't have activateSpawnInvincibility method
-                                    if (typeof newSnake.activateSpawnInvincibility === 'function') {
-                                        newSnake.activateSpawnInvincibility(newSnake.wager);
-                                    }
+                                    newSnake.activateSpawnInvincibility(newSnake.wager);
 
                                     const index = this.aiSnakes.indexOf(snake);
                                     if (index !== -1) {
@@ -3367,10 +3279,8 @@ class Game {
         let targetX, targetY;
 
         if (this.spectating) {
-            // Follow spectated snake (use remote players in multiplayer)
-            const aliveSnakes = this.isMultiplayer ?
-                this.remotePlayers.filter(snake => snake.alive) :
-                this.aiSnakes.filter(snake => snake.alive);
+            // Follow spectated snake
+            const aliveSnakes = this.aiSnakes.filter(snake => snake.alive);
             if (aliveSnakes.length > 0) {
                 const spectatedSnake = aliveSnakes[this.spectateTarget % aliveSnakes.length];
                 targetX = spectatedSnake.x - this.canvas.width / 2;
@@ -3398,18 +3308,16 @@ class Game {
     }
 
     updateKing() {
-        // Find the snake with the highest balance (use remote players in multiplayer)
-        const allSnakes = this.isMultiplayer ?
-            [this.player, ...this.remotePlayers].filter(snake => snake.alive) :
-            [this.player, ...this.aiSnakes].filter(snake => snake.alive);
+        // Find the snake with the highest balance
+        const allSnakes = [this.player, ...this.aiSnakes].filter(snake => snake.alive);
 
         if (allSnakes.length === 0) return;
 
         let newKing = allSnakes[0];
-        let highestBalance = this.getSnakeBalance(allSnakes[0]);
+        let highestBalance = this.player.isPlayer ? this.cashBalance : (allSnakes[0].collectedCash || 0);
 
         allSnakes.forEach(snake => {
-            const balance = this.getSnakeBalance(snake);
+            const balance = snake.isPlayer ? this.cashBalance : (snake.collectedCash || 0);
             if (balance > highestBalance) {
                 highestBalance = balance;
                 newKing = snake;
@@ -3419,20 +3327,7 @@ class Game {
         // Only update if king changed or if there's no current king
         if (this.currentKing !== newKing) {
             this.currentKing = newKing;
-            const kingType = newKing.isPlayer ? 'Player' : (this.isMultiplayer ? 'Remote Player' : 'AI');
-            console.log(`New king: ${kingType} with balance $${highestBalance}`);
-        }
-    }
-
-    getSnakeBalance(snake) {
-        if (snake.isPlayer) {
-            return this.cashBalance;
-        } else if (this.isMultiplayer) {
-            // Remote players have cashBalance property
-            return snake.cashBalance || 0;
-        } else {
-            // AI snakes use collectedCash
-            return snake.collectedCash || 0;
+            console.log(`New king: ${newKing.isPlayer ? 'Player' : 'AI'} with balance $${highestBalance}`);
         }
     }
 
@@ -4300,8 +4195,7 @@ class Game {
     }
 
     drawSnakes() {
-        // Draw all snakes (player + remote players in multiplayer)
-        const allSnakes = [this.player, ...this.remotePlayers].filter(s => s.alive);
+        const allSnakes = [this.player, ...this.aiSnakes].filter(s => s.alive);
 
         allSnakes.forEach(snake => {
             this.drawRealisticSnake(snake);
@@ -4321,9 +4215,8 @@ class Game {
         }
 
         // Check if snake is invincible and should blink
-        // Remote players don't have isInvincible method, so check if it exists
-        const isInvincible = (typeof snake.isInvincible === 'function') ? snake.isInvincible() : (snake.isInvincible || false);
-        const shouldBlink = isInvincible && Math.sin(snake.blinkPhase || 0) < 0;
+        const isInvincible = snake.isInvincible();
+        const shouldBlink = isInvincible && Math.sin(snake.blinkPhase) < 0;
 
         // Skip drawing if blinking (creates blinking effect)
         if (shouldBlink) {
@@ -4591,11 +4484,7 @@ class Game {
         this.ctx.fill();
 
         // Draw battering ram comet effect if active
-        // Remote players don't have hasActivePowerup method
-        const hasBatteringRam = (typeof snake.hasActivePowerup === 'function') ?
-            snake.hasActivePowerup('battering_ram') :
-            (snake.activePowerups && snake.activePowerups.some(p => p.type === 'battering_ram'));
-        if (hasBatteringRam) {
+        if (snake.hasActivePowerup('battering_ram')) {
             this.drawBatteringRamEffect(snake, x, y, headSize);
         }
 
@@ -4846,8 +4735,7 @@ class Game {
 
     drawHelmet(snake, headX, headY, headSize) {
         const time = Date.now() * 0.001;
-        // Remote players don't have getHelmetHealth method
-        const helmetHealth = (typeof snake.getHelmetHealth === 'function') ? snake.getHelmetHealth() : 500;
+        const helmetHealth = snake.getHelmetHealth();
         const maxHelmetHealth = 500;
         const healthRatio = helmetHealth / maxHelmetHealth;
 
@@ -5098,9 +4986,7 @@ class Game {
 
     drawActivePowerupEffects(snake, headX, headY, headSize) {
         // Draw effects for each active powerup
-        // Remote players don't have activePowerups array
-        const activePowerups = snake.activePowerups || [];
-        activePowerups.forEach(powerup => {
+        snake.activePowerups.forEach(powerup => {
             switch (powerup.type) {
                 case 'helmet':
                     this.drawHelmet(snake, headX, headY, headSize);
@@ -5282,17 +5168,15 @@ class Game {
     }
 
     drawPowerupStatusIndicators(snake, headX, headY, headSize) {
-        // Remote players don't have activePowerups array
-        const activePowerups = snake.activePowerups || [];
-        if (activePowerups.length === 0) return;
+        if (snake.activePowerups.length === 0) return;
 
         const time = Date.now() * 0.001;
         const indicatorY = headY - headSize * 2.5;
-        let indicatorX = headX - (activePowerups.length * 15) / 2;
+        let indicatorX = headX - (snake.activePowerups.length * 15) / 2;
 
         this.ctx.save();
 
-        activePowerups.forEach((powerup, index) => {
+        snake.activePowerups.forEach((powerup, index) => {
             const timeRemaining = powerup.expirationTime - Date.now();
             const totalDuration = powerup.duration;
             const timeRatio = timeRemaining / totalDuration;
@@ -5626,39 +5510,48 @@ class Game {
             });
         }
 
-        // Draw remote players with enhanced visibility
-        const aliveRemotePlayers = this.remotePlayers.filter(player => player.alive);
-        console.log(`Total remote players: ${this.remotePlayers.length}, Alive remote players: ${aliveRemotePlayers.length}`);
+        // Draw AI snakes with enhanced visibility
+        const aliveAI = this.aiSnakes.filter(snake => snake.alive);
+        console.log(`Total AI snakes: ${this.aiSnakes.length}, Alive AI snakes: ${aliveAI.length}`);
 
-        aliveRemotePlayers.forEach((player) => {
-            const x = player.x * scaleX;
-            const y = player.y * scaleY;
-            const size = Math.max(3, Math.min(7, player.segments.length * 0.2 + 3)); // Larger, more visible
+        aliveAI.forEach((snake) => {
+            const x = snake.x * scaleX;
+            const y = snake.y * scaleY;
+            const size = Math.max(3, Math.min(7, snake.segments.length * 0.2 + 3)); // Larger, more visible
 
-            // Enhanced remote player visibility with glow
-            this.minimapCtx.shadowColor = player.color;
+            // Enhanced AI snake visibility with glow
+            this.minimapCtx.shadowColor = snake.color;
             this.minimapCtx.shadowBlur = 6;
 
-            // Draw player body with solid color (no transparency for better visibility)
-            this.minimapCtx.fillStyle = player.color;
+            // Draw snake body with solid color (no transparency for better visibility)
+            this.minimapCtx.fillStyle = snake.color;
             this.minimapCtx.beginPath();
             this.minimapCtx.arc(x, y, size, 0, Math.PI * 2);
             this.minimapCtx.fill();
 
             // Draw direction indicator with contrasting color
-            const headX = x + Math.cos(player.angle || 0) * (size + 3);
-            const headY = y + Math.sin(player.angle || 0) * (size + 3);
+            const headX = x + Math.cos(snake.angle) * (size + 3);
+            const headY = y + Math.sin(snake.angle) * (size + 3);
             this.minimapCtx.fillStyle = '#FFFFFF'; // White direction indicator for contrast
             this.minimapCtx.beginPath();
             this.minimapCtx.arc(headX, headY, size * 0.4, 0, Math.PI * 2);
             this.minimapCtx.fill();
 
-            // Add player name indicator (small text)
-            if (player.username) {
-                this.minimapCtx.fillStyle = '#FFFFFF';
-                this.minimapCtx.font = '8px Arial';
-                this.minimapCtx.textAlign = 'center';
-                this.minimapCtx.fillText(player.username.substring(0, 3), x, y - size - 5);
+            // Add AI personality indicator (small colored dot)
+            if (snake.aiPersonality) {
+                const personalityColors = {
+                    'Aggressive': '#FF0000',
+                    'Tactical': '#0080FF',
+                    'Sniper': '#800080',
+                    'Berserker': '#FF4000',
+                    'Support': '#00FF80',
+                    'Hunter': '#FFFF00'
+                };
+                const personalityColor = personalityColors[snake.aiPersonality.name] || '#FFFFFF';
+                this.minimapCtx.fillStyle = personalityColor;
+                this.minimapCtx.beginPath();
+                this.minimapCtx.arc(x, y - size - 3, 1.5, 0, Math.PI * 2);
+                this.minimapCtx.fill();
             }
 
             this.minimapCtx.shadowBlur = 0;
@@ -5725,13 +5618,13 @@ class Game {
         this.minimapCtx.fillStyle = '#fff';
         this.minimapCtx.fillText('YOU', 16, legendY + 3);
 
-        // Remote players legend
+        // AI snakes legend
         this.minimapCtx.fillStyle = '#f44336';
         this.minimapCtx.beginPath();
         this.minimapCtx.arc(50, legendY, 2, 0, Math.PI * 2);
         this.minimapCtx.fill();
         this.minimapCtx.fillStyle = '#fff';
-        this.minimapCtx.fillText('PLAYERS', 56, legendY + 3);
+        this.minimapCtx.fillText('AI', 56, legendY + 3);
 
         // Orbs legend
         this.minimapCtx.fillStyle = '#FFD700';
@@ -5770,15 +5663,9 @@ class Game {
     }
 
     // React integration methods
-    async start() {
+    start() {
         // FIXED: Use the same initialization as restart() to ensure identical behavior
         this.setupEventListeners();
-
-        // Initialize multiplayer if enabled
-        if (this.isMultiplayer) {
-            await this.initializeMultiplayer();
-        }
-
         this.restart(); // This will do the complete initialization just like subsequent games
         this.gameLoop(); // Start the game loop ONCE
     }
@@ -5866,9 +5753,28 @@ class Game {
             this.score = this.cashBalance;
         }
 
-        // MULTIPLAYER MODE: No AI snakes on restart
+        // Reset AI snakes with correct count
         this.aiSnakes = [];
-        console.log('🔄 Multiplayer restart - AI snakes remain disabled');
+        const aiCount = this.gameMode === 'warfare' ? 15 : 18;
+        for (let i = 0; i < aiCount; i++) {
+            const x = Math.random() * this.worldWidth;
+            const y = Math.random() * this.worldHeight;
+            const colors = ['#ff0080', '#00ff41', '#00ffff', '#ff8000', '#8000ff', '#ffff00', '#ff4444', '#44ff44', '#4444ff'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const aiSnake = new Snake(x, y, color, false);
+            aiSnake.gameInstance = this; // Set game reference
+
+            // Set random wager for AI snakes in both modes (gambling mechanics in both)
+            aiSnake.wager = this.availableWagers[Math.floor(Math.random() * this.availableWagers.length)];
+            // Give AI starting cash equal to their wager
+            aiSnake.collectedCash = aiSnake.wager;
+            this.updateSnakeCashValue(aiSnake);
+
+            // Activate spawn invincibility for reset AI snake
+            aiSnake.activateSpawnInvincibility(aiSnake.wager);
+
+            this.aiSnakes.push(aiSnake);
+        }
 
         // Reset game objects
         this.food = [];
@@ -5925,8 +5831,7 @@ class Game {
     cycleThroughSnakes() {
         if (!this.spectating) return;
 
-        // In multiplayer, spectate remote players instead of AI
-        const aliveSnakes = this.remotePlayers.filter(player => player.alive);
+        const aliveSnakes = this.aiSnakes.filter(snake => snake.alive);
         if (aliveSnakes.length === 0) return;
 
         this.spectateTarget = (this.spectateTarget + 1) % aliveSnakes.length;
@@ -5937,82 +5842,7 @@ class Game {
         this.camera.y = targetSnake.y - this.canvas.height / 2;
     }
 
-    // ===== MULTIPLAYER METHODS =====
 
-    async initializeMultiplayer() {
-        if (!this.isMultiplayer || !this.multiplayerService) {
-            console.log('🌐 Multiplayer service already connected or not needed');
-            return;
-        }
-
-        try {
-            console.log('🌐 Multiplayer service connected to game instance');
-
-            // Set up player ID if available
-            if (this.multiplayerService.playerId) {
-                this.playerId = this.multiplayerService.playerId;
-            }
-
-        } catch (error) {
-            console.error('❌ Failed to initialize multiplayer service:', error);
-        }
-    }
-
-    updateRemotePlayers() {
-        // Update remote players based on received data
-        this.remotePlayers.forEach(player => {
-            if (player.alive) {
-                // Interpolate position for smooth movement
-                this.interpolatePlayerPosition(player);
-
-                // Update player segments
-                if (player.segments && player.segments.length > 0) {
-                    this.updateRemotePlayerSegments(player);
-                }
-            }
-        });
-    }
-
-    interpolatePlayerPosition(player) {
-        // Simple linear interpolation for smooth movement
-        if (player.targetX !== undefined && player.targetY !== undefined) {
-            const lerpFactor = 0.1; // Adjust for smoothness vs responsiveness
-            player.x += (player.targetX - player.x) * lerpFactor;
-            player.y += (player.targetY - player.y) * lerpFactor;
-        }
-    }
-
-    updateRemotePlayerSegments(player) {
-        // Update segments to follow the head
-        if (player.segments.length > 1) {
-            for (let i = 1; i < player.segments.length; i++) {
-                const prevSegment = player.segments[i - 1];
-                const currentSegment = player.segments[i];
-
-                const dx = prevSegment.x - currentSegment.x;
-                const dy = prevSegment.y - currentSegment.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                if (distance > player.segmentDistance) {
-                    const ratio = player.segmentDistance / distance;
-                    currentSegment.x = prevSegment.x - dx * ratio;
-                    currentSegment.y = prevSegment.y - dy * ratio;
-                }
-            }
-        }
-    }
-
-    // Broadcast game events to other players
-    broadcastGameEvent(eventType, data) {
-        if (this.multiplayerService && this.isMultiplayer) {
-            this.multiplayerService.broadcastGameEvent({
-                type: eventType,
-                playerId: this.playerId,
-                data: data,
-                timestamp: Date.now()
-            });
-        }
-    }
 
     initializeGamepadSupport() {
         // Check if gamepad API is supported

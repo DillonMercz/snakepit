@@ -5,6 +5,7 @@ import GameModeSelect from './components/GameModeSelect';
 import GameContainer from './components/GameContainer';
 import AudioManager from './utils/AudioManager';
 import { AuthProvider } from './contexts/AuthContext';
+import AuthTest from './components/AuthTest';
 
 export type GameMode = 'classic' | 'warfare' | null;
 
@@ -18,19 +19,15 @@ function App() {
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [gameMode, setGameMode] = useState<GameMode>(null);
   const [gameStarted, setGameStarted] = useState(false);
-  const [roomId, setRoomId] = useState<string | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
 
   const handleLegalComplete = () => {
     setLegalAccepted(true);
   };
 
-  const handleModeSelect = (mode: GameMode, userData: UserData, isMultiplayer?: boolean, roomId?: string) => {
+  const handleModeSelect = (mode: GameMode, userData: UserData) => {
     setGameMode(mode);
     setUserData(userData);
-    if (roomId) {
-      setRoomId(roomId);
-    }
     setGameStarted(true);
   };
 
@@ -52,7 +49,6 @@ function App() {
     setGameMode(null);
     setUserData(null);
     setGameStarted(false);
-    setRoomId(null);
   };
 
   // Manage body class for overflow control
@@ -75,14 +71,11 @@ function App() {
         {!legalAccepted ? (
           <LegalOverlay onComplete={handleLegalComplete} />
         ) : !gameStarted ? (
-          <GameModeSelect
-            onModeSelect={handleModeSelect}
-          />
+          <GameModeSelect onModeSelect={handleModeSelect} />
         ) : (
           <GameContainer
             gameMode={gameMode}
             onBackToMenu={handleBackToMenu}
-            roomId={roomId}
           />
         )}
       </div>

@@ -14,7 +14,7 @@ import { About } from './About';
 import { CryptoManager } from './CryptoManager';
 
 interface GameModeSelectProps {
-  onModeSelect: (mode: GameMode, userData: UserData, isMultiplayer?: boolean, roomId?: string) => void;
+  onModeSelect: (mode: GameMode, userData: UserData) => void;
 }
 
 interface UserData {
@@ -635,7 +635,7 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
     }
 
     try {
-      console.log('🎮 Starting multiplayer game with wager:', userData.wager);
+      console.log('🎮 Starting secure game with wager:', userData.wager);
 
       // Use secure wager function instead of manual balance manipulation
       const wagerResult = await GameStatsService.startGame(mode as 'classic' | 'warfare', userData.wager);
@@ -656,62 +656,6 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
       // Trigger profile refresh to update the UI
       window.dispatchEvent(new CustomEvent('profileRefresh'));
 
-      // Initialize multiplayer and find/create room
-      console.log('🌐 Initializing multiplayer for', mode, 'mode...');
-
-      // Import and initialize multiplayer service
-      const { default: MultiplayerService } = await import('../services/MultiplayerService');
-      const multiplayerService = MultiplayerService.getInstance();
-
-      // Initialize multiplayer service
-      await multiplayerService.initializeMultiplayer(null, user.id, userProfile.username);
-
-      // Try to find an existing room with matching criteria
-      const availableRooms = await multiplayerService.getAvailableRooms();
-      const matchingRoom = availableRooms.find(room =>
-        room.gameMode === mode &&
-        room.wagerAmount === userData.wager &&
-        room.currentPlayers < room.maxPlayers
-      );
-
-      let roomId: string;
-
-      if (matchingRoom) {
-        // Join existing room
-        console.log('🚪 Joining existing room:', matchingRoom.name);
-        const joined = await multiplayerService.joinRoom(matchingRoom.id);
-        if (!joined) {
-          alert('Failed to join room. Creating a new one...');
-          // Fall back to creating new room
-          const newRoom = await multiplayerService.createRoom(mode as 'classic' | 'warfare', userData.wager, 8);
-          if (!newRoom) {
-            alert('Failed to create room. Please try again.');
-            return;
-          }
-          roomId = newRoom.id;
-        } else {
-          roomId = matchingRoom.id;
-        }
-      } else {
-        // Create new room
-        console.log('🏠 Creating new room for', mode, 'mode');
-        const newRoom = await multiplayerService.createRoom(mode as 'classic' | 'warfare', userData.wager, 8);
-        if (!newRoom) {
-          alert('Failed to create room. Please try again.');
-          return;
-        }
-        roomId = newRoom.id;
-      }
-
-      // Connect to the room
-      const connected = await multiplayerService.connectToRoom();
-      if (!connected) {
-        alert('Failed to connect to multiplayer room. Please try again.');
-        return;
-      }
-
-      console.log('✅ Connected to multiplayer room:', roomId);
-
       // Transition to game music
       const audioManager = AudioManager.getInstance();
       await audioManager.playTrack('game', {
@@ -722,13 +666,13 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
       });
       console.log('Transitioned to game music');
 
-      // Proceed to multiplayer game with updated userData
+      // Proceed to game with updated userData
       onModeSelect(mode, {
         ...userData,
         xrpBalance: wagerResult.new_balance || userData.xrpBalance
-      }, true, roomId); // isMultiplayer = true, roomId = roomId
+      });
     } catch (error) {
-      console.error('Failed to start multiplayer game:', error);
+      console.error('Failed to start game:', error);
       alert('Failed to start game. Please try again.');
     }
   };
@@ -1084,12 +1028,12 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
                 >
                   <div className="mode-icon">🐍</div>
                   <div className="mode-info">
-                    <h4>Classic Pit 🌐</h4>
-                    <p>Traditional multiplayer gameplay with cash collection</p>
+                    <h4>Classic Pit</h4>
+                    <p>Traditional gameplay with cash collection</p>
                     <div className="mode-features">
-                      <span>• 🎮 Real Players</span>
-                      <span>• 💰 Cash & Orbs</span>
-                      <span>• ⚡ Boost System</span>
+                      <span>• 15 AI Snakes</span>
+                      <span>• Cash & Orbs</span>
+                      <span>• Boost System</span>
                     </div>
                   </div>
                 </button>
@@ -1101,17 +1045,15 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
                 >
                   <div className="mode-icon">⚔️</div>
                   <div className="mode-info">
-                    <h4>Combat Pit 🌐</h4>
-                    <p>High-stakes multiplayer warfare with weapons</p>
+                    <h4>Combat Pit</h4>
+                    <p>High-stakes warfare with weapons</p>
                     <div className="mode-features">
-                      <span>• 🎮 Real Players</span>
-                      <span>• ⚔️ Weapon System</span>
-                      <span>• 🔋 Power-ups</span>
+                      <span>• Weapon System</span>
+                      <span>• PvP Combat</span>
+                      <span>• Power-ups</span>
                     </div>
                   </div>
                 </button>
-
-
               </div>
 
               {userData.username.trim() === '' && (

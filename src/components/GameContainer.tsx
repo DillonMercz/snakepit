@@ -13,7 +13,6 @@ import { GameStatsService } from '../services/GameStatsService';
 interface GameContainerProps {
   gameMode: GameMode;
   onBackToMenu: () => void;
-  roomId?: string | null; // For multiplayer mode
 }
 
 export interface GameState {
@@ -40,7 +39,7 @@ export interface GameState {
   cashoutAmount?: number;
 }
 
-const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu, roomId }) => {
+const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu }) => {
   const { user, userProfile } = useAuth();
 
   const [gameState, setGameState] = useState<GameState>({
@@ -145,7 +144,6 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu, r
           gameMode={gameMode}
           gameInstanceRef={gameInstanceRef}
           onGameStateUpdate={setGameState}
-          roomId={roomId}
         />
 
         {/* Overlay UI elements on top of the game canvas */}

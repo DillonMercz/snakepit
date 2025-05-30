@@ -9,14 +9,12 @@ interface GameCanvasProps {
   gameMode: GameMode;
   gameInstanceRef: React.MutableRefObject<any>;
   onGameStateUpdate: (state: GameState) => void;
-  roomId?: string | null; // For multiplayer mode
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({
   gameMode,
   gameInstanceRef,
-  onGameStateUpdate,
-  roomId
+  onGameStateUpdate
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const initializingRef = useRef<boolean>(false);
@@ -42,22 +40,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         // Initialize the game with the canvas and mode
         const gameInstance = new Game(canvasRef.current, gameMode || 'classic');
         gameInstanceRef.current = gameInstance;
-
-        // Initialize multiplayer if roomId is provided
-        if (roomId) {
-          console.log('🌐 Connecting game instance to multiplayer room:', roomId);
-
-          // Import and get multiplayer service
-          const { default: MultiplayerService } = await import('../services/MultiplayerService');
-          const multiplayerService = MultiplayerService.getInstance();
-
-          // Connect the game instance to the multiplayer service
-          multiplayerService.setGameInstance(gameInstance);
-          gameInstance.roomId = roomId;
-          gameInstance.multiplayerService = multiplayerService;
-
-          console.log('✅ Game instance connected to multiplayer service');
-        }
 
         // CRITICAL: Set up callbacks BEFORE starting the game to prevent race condition
         // Set up game state update callback
