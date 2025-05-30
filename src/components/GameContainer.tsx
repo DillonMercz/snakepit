@@ -228,25 +228,3 @@ const GameContainer: React.FC<GameContainerProps> = ({
     </div>
   );
 };
-
-export default GameContainer;
-        <GameOver
-          finalScore={gameState.finalScore}
-          finalLength={gameState.finalLength}
-          onRestart={handleRestart}
-          onBackToMenu={onBackToMenu}
-        />
-      )}
-
-      {gameState.cashedOut && (
-        <CashoutSuccess
-          cashoutAmount={gameState.cashoutAmount || 0}
-          onRestart={handleRestart}
-          onBackToMenu={onBackToMenu}
-        />
-      )}
-    </div>
-  );
-};
-
-export default GameContainer;

@@ -10,13 +10,15 @@ interface GameCanvasProps {
   gameInstanceRef: React.MutableRefObject<any>;
   onGameStateUpdate: (state: GameState) => void;
   networkManager?: any; // Added networkManager prop
+  localPlayerId?: string | null; // Add this
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({
   gameMode,
   gameInstanceRef,
   onGameStateUpdate,
-  networkManager // Destructure networkManager
+  networkManager, // Destructure networkManager
+  localPlayerId // Destructure localPlayerId
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const initializingRef = useRef<boolean>(false);
@@ -38,17 +40,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         const { Game } = await import('../gameLogic.js');
 
         const isMultiplayer = gameMode === 'classic_pvp' || gameMode === 'warfare_pvp';
-        let localPlayerId = null;
-        if (isMultiplayer && networkManager) {
-          localPlayerId = networkManager.playerId; // Assuming playerId is available on networkManager
-          if (!localPlayerId) {
-            console.warn("NetworkManager Player ID not available for multiplayer game initialization.");
-            // Potentially wait or handle error - for now, Game constructor handles null localPlayerId
-          }
+        // Use the localPlayerId prop passed from GameContainer
+        const effectivePlayerId = localPlayerId;
+
+        if (isMultiplayer && networkManager && !effectivePlayerId) {
+            console.warn("GameCanvas: localPlayerId prop not available for multiplayer game initialization, but networkManager is present. Check prop drilling.");
+            // Potentially use networkManager.playerId as a fallback if desired, but prop should be the source of truth.
+            // localPlayerId = networkManager.playerId;
         }
 
-        console.log(`GameCanvas: Creating Game instance. Mode: ${gameMode}, MP: ${isMultiplayer}, PlayerID: ${localPlayerId}`);
-        const gameInstance = new Game(canvasRef.current, gameMode || 'classic', localPlayerId);
+        console.log(`GameCanvas: Creating Game instance. Mode: ${gameMode}, MP: ${isMultiplayer}, PlayerID: ${effectivePlayerId}`);
+        const gameInstance = new Game(canvasRef.current, gameMode || 'classic', effectivePlayerId);
         gameInstanceRef.current = gameInstance;
 
         if (isMultiplayer && networkManager) {

@@ -23,7 +23,7 @@ const getAmmoIcon = (ammoType: string): string => {
   }
 };
 
-const GameUI: React.FC<GameUIProps> = ({ gameState, gameMode, onCashOut }) => {
+const GameUI: React.FC<GameUIProps> = ({ gameState, gameMode, onCashOut, localPlayerId }) => {
   // Calculate if cashout is available (player has gained cash beyond initial wager)
   const initialWager = 50; // Default wager amount
   const currentCash = gameState.cashBalance || gameState.score || 0;

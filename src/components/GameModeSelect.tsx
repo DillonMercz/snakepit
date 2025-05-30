@@ -15,6 +15,8 @@ import { CryptoManager } from './CryptoManager';
 
 interface GameModeSelectProps {
   onModeSelect: (mode: GameMode, userData: UserData) => void;
+  isConnecting?: boolean | null;
+  connectionError?: string | null;
 }
 
 interface UserData {
@@ -47,7 +49,7 @@ interface LogoSnake {
   direction: 1 | -1; // 1 for clockwise, -1 for counter-clockwise
 }
 
-const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
+const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect, isConnecting, connectionError }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const logoSnakesCanvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
