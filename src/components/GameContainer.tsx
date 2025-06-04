@@ -7,6 +7,7 @@ import Instructions from './Instructions';
 import GameOver from './GameOver';
 import CashoutSuccess from './CashoutSuccess';
 import ControllerStatus from './ControllerStatus';
+import EliminationBanner from './EliminationBanner';
 import { useAuth } from '../contexts/AuthContext';
 import { GameStatsService } from '../services/GameStatsService';
 
@@ -32,11 +33,35 @@ export interface GameState {
   cooldown: string;
   cooldownProgress?: number; // 0-100 percentage for progress bar
   ammoInventory?: Record<string, number>; // ammo type -> amount
+  powerupInventory?: Array<{
+    type: string;
+    name: string;
+    duration?: number;
+    damageReduction?: number;
+    headProtection?: number;
+    boostDamage?: number;
+    speedBoost?: number;
+    helmetHealth?: number;
+    description?: string;
+  }>; // powerup inventory
+  activePowerups?: Array<{
+    type: string;
+    name: string;
+    duration?: number;
+    expirationTime: number;
+    damageReduction?: number;
+    headProtection?: number;
+    boostDamage?: number;
+    speedBoost?: number;
+    helmetHealth?: number;
+    description?: string;
+  }>; // active powerups
   isGameOver: boolean;
   finalScore: number;
   finalLength: number;
   cashedOut?: boolean;
   cashoutAmount?: number;
+  isKing?: boolean; // Whether this player is currently the king (highest cash)
 }
 
 const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu }) => {
@@ -56,6 +81,16 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu })
   const gameInstanceRef = useRef<any>(null);
   const gameStartTimeRef = useRef<number>(Date.now());
   const gameResultSavedRef = useRef<boolean>(false);
+
+  // Elimination banner state
+  const [eliminations, setEliminations] = useState<Array<{
+    id: string;
+    killerName: string;
+    victimName: string;
+    weapon: string;
+    method: 'headshot' | 'bodyshot' | 'collision' | 'segments';
+    timestamp: number;
+  }>>([]);
 
   // Reset game start time when component mounts
   useEffect(() => {
@@ -89,6 +124,52 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu })
       durationSeconds,
       cashedOut: gameState.cashedOut || false
     };
+
+    // Debug logging to identify the issue
+    console.log('🔍 Debug saveGameResult parameters:', {
+      userId: result.userId,
+      username: result.username,
+      gameMode: result.gameMode,
+      wagerAmount: result.wagerAmount,
+      finalScore: result.finalScore,
+      finalLength: result.finalLength,
+      finalCash: result.finalCash,
+      durationSeconds: result.durationSeconds,
+      cashedOut: result.cashedOut,
+      gameStartTime: gameStartTimeRef.current,
+      currentTime: Date.now()
+    });
+
+    // Validate parameters before sending to server
+    if (!result.userId || !result.username || !result.gameMode) {
+      console.error('❌ Missing required user/game parameters');
+      return;
+    }
+
+    if (isNaN(result.wagerAmount) || result.wagerAmount <= 0) {
+      console.error('❌ Invalid wager amount:', result.wagerAmount);
+      return;
+    }
+
+    if (isNaN(result.finalScore) || result.finalScore < 0) {
+      console.error('❌ Invalid final score:', result.finalScore);
+      return;
+    }
+
+    if (isNaN(result.finalLength) || result.finalLength < 0) {
+      console.error('❌ Invalid final length:', result.finalLength);
+      return;
+    }
+
+    if (isNaN(result.finalCash) || result.finalCash < 0) {
+      console.error('❌ Invalid final cash:', result.finalCash);
+      return;
+    }
+
+    if (isNaN(result.durationSeconds) || result.durationSeconds <= 0) {
+      console.error('❌ Invalid duration seconds:', result.durationSeconds);
+      return;
+    }
 
     const success = await GameStatsService.saveGameResult(result);
     if (!success) {
@@ -137,6 +218,14 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu })
     }
   };
 
+  const handleElimination = (eliminationData: any) => {
+    setEliminations(prev => [...prev, eliminationData]);
+  };
+
+  const handleEliminationExpire = (eliminationId: string) => {
+    setEliminations(prev => prev.filter(e => e.id !== eliminationId));
+  };
+
   return (
     <div className="game-container scanlines">
       <div className="game-canvas">
@@ -144,6 +233,7 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu })
           gameMode={gameMode}
           gameInstanceRef={gameInstanceRef}
           onGameStateUpdate={setGameState}
+          onElimination={handleElimination}
         />
 
         {/* Overlay UI elements on top of the game canvas */}
@@ -158,6 +248,12 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu })
         <Instructions gameMode={gameMode} />
 
         <ControllerStatus gameInstanceRef={gameInstanceRef} />
+
+        {/* Elimination Banner */}
+        <EliminationBanner
+          eliminations={eliminations}
+          onEliminationExpire={handleEliminationExpire}
+        />
       </div>
 
       {gameState.isGameOver && !gameState.cashedOut && (

@@ -1441,8 +1441,8 @@ class Game {
         window.addEventListener('resize', resizeCanvas);
 
         // Game world dimensions
-        this.worldWidth = 4000;
-        this.worldHeight = 4000;
+        this.worldWidth = 2000;
+        this.worldHeight = 2000;
 
         // Game mode
         this.gameMode = gameMode;

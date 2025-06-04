@@ -151,6 +151,142 @@ body.game-active {
   100% { background-position: 0% 50%; }
 }
 
+/* Crown icon animations */
+@keyframes crown-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.6));
+  }
+  50% {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.9));
+  }
+}
+
+.crown-icon {
+  display: inline-block;
+}
+
+.crown-animated {
+  animation: crown-pulse 2s ease-in-out infinite;
+}
+
+/* Elimination Banner Styles */
+.elimination-banner-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.elimination-banner {
+  position: absolute;
+  right: 0;
+  background: rgba(0, 0, 0, 0.9);
+  border: 2px solid var(--neon-red);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  min-width: 300px;
+  box-shadow:
+    0 0 15px rgba(255, 0, 64, 0.5),
+    inset 0 0 15px rgba(255, 0, 64, 0.1);
+  animation: elimination-slide-in 0.5s ease-out;
+  backdrop-filter: blur(5px);
+}
+
+.elimination-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.elimination-icon {
+  flex-shrink: 0;
+}
+
+.elimination-icon.headshot {
+  color: var(--neon-red);
+  filter: drop-shadow(0 0 4px var(--neon-red));
+}
+
+.elimination-icon.bodyshot {
+  color: var(--neon-yellow);
+  filter: drop-shadow(0 0 4px var(--neon-yellow));
+}
+
+.elimination-icon.collision {
+  color: var(--neon-purple);
+  filter: drop-shadow(0 0 4px var(--neon-purple));
+}
+
+.elimination-icon.segments {
+  color: var(--neon-orange);
+  filter: drop-shadow(0 0 4px var(--neon-orange));
+}
+
+.elimination-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+}
+
+.elimination-killer {
+  font-weight: bold;
+  font-size: 0.8rem;
+}
+
+.elimination-victim {
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.elimination-method {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.elimination-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+}
+
+.elimination-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--neon-red), var(--neon-yellow));
+  width: 100%;
+  animation: elimination-progress 4s linear;
+}
+
+@keyframes elimination-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes elimination-progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
 /* Game Mode Selection */
 .game-mode-select {
   display: flex;
@@ -501,6 +637,109 @@ body.game-active {
   color: var(--text-secondary);
   font-weight: 600;
   min-width: 12px;
+}
+
+/* Powerup Inventory */
+.powerup-inventory {
+  margin-bottom: 0.3rem;
+  padding: 0.3rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 0, 128, 0.2);
+  border-radius: 3px;
+}
+
+.powerup-header {
+  display: none; /* Hide header to save space */
+}
+
+.powerup-types {
+  display: flex;
+  gap: 0.2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.powerup-type {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.2rem 0.3rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 0, 128, 0.1);
+  border-radius: 2px;
+  transition: all 0.2s ease;
+  min-width: 40px;
+}
+
+.powerup-type:hover {
+  border-color: var(--neon-pink);
+  box-shadow: var(--glow-small) var(--neon-pink);
+}
+
+.powerup-icon {
+  font-size: 0.8rem;
+}
+
+.powerup-name {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.5rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-align: center;
+  line-height: 1;
+}
+
+/* Active Powerups */
+.active-powerups {
+  margin-bottom: 0.3rem;
+  padding: 0.3rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(0, 255, 65, 0.2);
+  border-radius: 3px;
+}
+
+.active-powerups-header {
+  display: none; /* Hide header to save space */
+}
+
+.active-powerup-list {
+  display: flex;
+  gap: 0.2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.active-powerup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.2rem;
+  background: rgba(0, 255, 65, 0.1);
+  border: 1px solid rgba(0, 255, 65, 0.2);
+  border-radius: 2px;
+  transition: all 0.2s ease;
+  min-width: 30px;
+}
+
+.active-powerup-icon {
+  font-size: 0.7rem;
+}
+
+.active-powerup-timer {
+  width: 20px;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.timer-bar {
+  height: 100%;
+  background: var(--neon-green);
+  transition: width 0.1s ease-out;
+  box-shadow: 0 0 4px var(--neon-green);
 }
 
 .inventory-controls {

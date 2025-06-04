@@ -1,4 +1,6 @@
-import { saveGameSession, updateLeaderboard, addTransaction, updateUserProfile, startGameWager, secureCashout } from '../lib/supabase'
+// Server API-based game stats service - no direct Supabase calls
+
+const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'http://localhost:3005';
 
 export interface GameResult {
   userId: string
@@ -14,9 +16,28 @@ export interface GameResult {
 
 export class GameStatsService {
   // Secure function to start a game and deduct wager
-  static async startGame(gameMode: 'classic' | 'warfare', wagerAmount: number) {
-    console.log('🎮 Starting secure game:', { gameMode, wagerAmount })
-    return await startGameWager(gameMode, wagerAmount)
+  static async startGame(gameMode: 'classic' | 'warfare', wagerAmount: number, userId?: string) {
+    try {
+      console.log('🎮 Starting secure game via server API:', { gameMode, wagerAmount });
+
+      const response = await fetch(`${SERVER_URL}/api/game-results/start-wager`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gameMode,
+          wagerAmount,
+          userId: userId || 'temp-user-id', // TODO: Get from auth context
+        }),
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Error starting game wager:', error);
+      return { success: false, error: 'Failed to start game wager' };
+    }
   }
 
   // Secure function to process cashout
@@ -26,73 +47,121 @@ export class GameStatsService {
     finalScore: number,
     finalLength: number,
     finalCash: number,
-    durationSeconds: number
+    durationSeconds: number,
+    userId: string,
+    username: string
   ) {
-    console.log('🎮 Processing secure cashout via GameStatsService', {
-      gameMode,
-      wagerAmount,
-      finalScore,
-      finalLength,
-      finalCash,
-      durationSeconds
-    })
-
-    const result = await secureCashout(gameMode, wagerAmount, finalScore, finalLength, finalCash, durationSeconds)
-
-    if (result.success) {
-      console.log('🎮 Cashout successful:', result)
-      // Trigger a profile refresh to update the UI
-      window.dispatchEvent(new CustomEvent('profileRefresh'))
-    } else {
-      console.error('🎮 Cashout failed:', result.error)
-    }
-
-    return result
-  }
-
-  // Legacy function - now uses secure cashout
-  static async saveGameResult(result: GameResult): Promise<boolean> {
     try {
-      console.log('🎮 Saving game result using secure cashout')
+      console.log('🎮 Processing secure cashout via server API', {
+        gameMode,
+        wagerAmount,
+        finalScore,
+        finalLength,
+        finalCash,
+        durationSeconds,
+        userId,
+        username
+      });
 
-      // Use the secure cashout function instead of manual database operations
-      const cashoutResult = await secureCashout(
-        result.gameMode,
-        result.wagerAmount,
-        result.finalScore,
-        result.finalLength,
-        result.finalCash,
-        result.durationSeconds
-      )
+      const response = await fetch(`${SERVER_URL}/api/game-results/cashout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          gameMode,
+          wagerAmount,
+          finalScore,
+          finalLength,
+          finalCash,
+          durationSeconds,
+          userId,
+          username
+        }),
+      });
 
-      if (!cashoutResult.success) {
-        console.error('Secure cashout failed:', cashoutResult.error)
-        return false
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('🎮 Cashout successful:', result);
+        // Trigger a profile refresh to update the UI
+        window.dispatchEvent(new CustomEvent('profileRefresh'));
+      } else {
+        console.error('🎮 Cashout failed:', result.error);
       }
 
-      console.log('Game result saved successfully via secure cashout')
-      return true
+      return result;
     } catch (error) {
-      console.error('Error saving game result:', error)
-      return false
+      console.error('Error processing cashout:', error);
+      return { success: false, error: 'Failed to process cashout' };
+    }
+  }
+
+  // Save game result using server API
+  static async saveGameResult(result: GameResult): Promise<boolean> {
+    try {
+      console.log('🎮 Saving game result via server API');
+
+      const response = await fetch(`${SERVER_URL}/api/game-results/save`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(result),
+      });
+
+      const apiResult = await response.json();
+
+      if (!apiResult.success) {
+        console.error('Server API failed to save game result:', apiResult.error);
+        return false;
+      }
+
+      console.log('🎮 Game result saved successfully via server API');
+
+      // Trigger a profile refresh to update the UI
+      window.dispatchEvent(new CustomEvent('profileRefresh'));
+
+      return true;
+    } catch (error) {
+      console.error('Error saving game result:', error);
+      return false;
     }
   }
 
   static async recordCashout(userId: string, username: string, gameMode: 'classic' | 'warfare', cashoutAmount: number): Promise<boolean> {
     try {
-      // Record cashout transaction
-      await addTransaction({
-        user_id: userId,
-        type: 'cashout',
-        amount: cashoutAmount,
-        description: `${gameMode} mode in-game cashout`
-      })
+      console.log('🎮 Recording cashout via server API');
 
-      console.log('Cashout recorded successfully')
-      return true
+      const response = await fetch(`${SERVER_URL}/api/game-results/cashout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          username,
+          gameMode,
+          wagerAmount: 50, // Default wager
+          finalScore: cashoutAmount,
+          finalLength: 0,
+          finalCash: cashoutAmount,
+          durationSeconds: 1, // Minimal duration for cashout
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('Cashout recorded successfully');
+        return true;
+      } else {
+        console.error('Failed to record cashout:', result.error);
+        return false;
+      }
     } catch (error) {
-      console.error('Error recording cashout:', error)
-      return false
+      console.error('Error recording cashout:', error);
+      return false;
     }
   }
 

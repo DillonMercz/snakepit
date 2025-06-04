@@ -9,12 +9,14 @@ interface GameCanvasProps {
   gameMode: GameMode;
   gameInstanceRef: React.MutableRefObject<any>;
   onGameStateUpdate: (state: GameState) => void;
+  onElimination?: (eliminationData: any) => void;
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({
   gameMode,
   gameInstanceRef,
-  onGameStateUpdate
+  onGameStateUpdate,
+  onElimination
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const initializingRef = useRef<boolean>(false);
@@ -34,28 +36,56 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // Import and initialize the game logic
     const initializeGame = async () => {
       try {
-        // Import the game logic
-        const { Game } = await import('../gameLogic.js');
+        // Import the new ClientGame class (fixed import syntax)
+        const ClientGame = (await import('../ClientGame.js')).default;
 
-        // Initialize the game with the canvas and mode
-        const gameInstance = new Game(canvasRef.current, gameMode || 'classic');
+        // Set the canvas ID so ClientGame can find it
+        if (canvasRef.current) {
+          canvasRef.current.id = 'gameCanvas';
+        }
+
+        // Initialize the game with canvas and game mode
+        const gameInstance = new ClientGame(canvasRef.current, gameMode || 'classic');
         gameInstanceRef.current = gameInstance;
 
-        // CRITICAL: Set up callbacks BEFORE starting the game to prevent race condition
-        // Set up game state update callback
-        gameInstance.onStateUpdate = (state: GameState) => {
+        // Set up callbacks for React state updates
+        gameInstance.onStateUpdate = (state: any) => {
           onGameStateUpdate(state);
         };
 
-        // Set up game over callback
         gameInstance.onGameOver = (gameOverState: any) => {
           onGameStateUpdate(gameOverState);
         };
 
-        // Start the game AFTER callbacks are set up
-        gameInstance.start();
+        // Set up elimination handler
+        if (onElimination) {
+          gameInstance.onElimination = onElimination;
+        }
+
+        // Start the game with multiplayer server connection
+        await gameInstance.start();
       } catch (error) {
         console.error('Failed to initialize game:', error);
+
+        // Fallback to original game logic if multiplayer fails
+        console.log('Falling back to single-player mode...');
+        try {
+          const { Game } = await import('../gameLogic.js');
+          const gameInstance = new Game(canvasRef.current, gameMode || 'classic');
+          gameInstanceRef.current = gameInstance;
+
+          gameInstance.onStateUpdate = (state: GameState) => {
+            onGameStateUpdate(state);
+          };
+
+          gameInstance.onGameOver = (gameOverState: any) => {
+            onGameStateUpdate(gameOverState);
+          };
+
+          gameInstance.start();
+        } catch (fallbackError) {
+          console.error('Failed to initialize fallback game:', fallbackError);
+        }
       }
     };
 
@@ -63,8 +93,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Cleanup on unmount
     return () => {
-      if (gameInstanceRef.current && gameInstanceRef.current.destroy) {
-        gameInstanceRef.current.destroy();
+      if (gameInstanceRef.current) {
+        // Use the destroy method for proper cleanup
+        if (gameInstanceRef.current.destroy) {
+          gameInstanceRef.current.destroy();
+        }
         gameInstanceRef.current = null; // Clear the reference
       }
       gameInitialized = false; // Reset the module flag

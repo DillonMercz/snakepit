@@ -95,12 +95,14 @@ class GamepadManager {
     }
     
     addGamepad(gamepad) {
+        const controllerType = this.detectControllerType(gamepad.id);
+
         this.gamepads[gamepad.index] = {
             gamepad: gamepad,
-            type: this.detectControllerType(gamepad.id),
+            type: controllerType,
             lastUpdate: Date.now()
         };
-        
+
         // Initialize button states
         this.buttonStates[gamepad.index] = {};
         this.previousButtonStates[gamepad.index] = {};
@@ -167,7 +169,7 @@ class GamepadManager {
         }
         
         // Handle boost (A/Cross button)
-        const boostButton = mapping.buttons.A || mapping.buttons.Cross;
+        const boostButton = controllerData.type === 'xbox' ? mapping.buttons.A : mapping.buttons.Cross;
         if (this.isButtonPressed(gamepad.index, boostButton)) {
             if (this.callbacks.onBoost) {
                 this.callbacks.onBoost(true);

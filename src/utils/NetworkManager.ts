@@ -36,11 +36,13 @@ class NetworkManager {
   public onPlayerLeft: ((playerData: any) => void) | null = null;
   public onConnectionError: ((error: any) => void) | null = null;
   public onDisconnected: ((reason: any) => void) | null = null;
+  public onCashoutResult: ((result: any) => void) | null = null;
+  public onPlayerElimination: ((eliminationData: any) => void) | null = null;
 
   // Input buffering for smooth gameplay
   private inputBuffer: InputData[] = [];
   private lastInputSent: number = 0;
-  private inputSendRate: number = 1000 / 30; // Send input 30 times per second
+  private inputSendRate: number = 1000 / 30; // Send input 30 times per second to match server network rate
   private networkMonitor: NodeJS.Timeout | null = null;
 
   constructor() {
@@ -49,26 +51,34 @@ class NetworkManager {
 
   getServerUrl() {
     // Try to detect if we're in development or production
-    const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+    const isLAN = hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.');
 
-    if (isDevelopment) {
-      // In development, try to connect to local server
-      return 'http://localhost:3001';
+    if (isLocalhost) {
+      // Local development
+      return 'http://localhost:3005';
+    } else if (isLAN) {
+      // LAN access - use the same IP as the client
+      return `http://${hostname}:3005`;
     } else {
-      // In production, you might want to use a different URL
-      // For now, assume same host different port
-      return `http://${window.location.hostname}:3001`;
+      // Production or other scenarios
+      return `http://${hostname}:3005`;
     }
   }
 
   static getServerUrl() {
     // Static version for external access
-    const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+    const isLAN = hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.');
 
-    if (isDevelopment) {
-      return 'http://localhost:3001';
+    if (isLocalhost) {
+      return 'http://localhost:3005';
+    } else if (isLAN) {
+      return `http://${hostname}:3005`;
     } else {
-      return `http://${window.location.hostname}:3001`;
+      return `http://${hostname}:3005`;
     }
   }
 
@@ -143,6 +153,20 @@ class NetworkManager {
         }
       });
 
+      this.socket.on('cashoutResult', (result: any) => {
+        console.log('💰 Cashout result:', result);
+        if (this.onCashoutResult) {
+          this.onCashoutResult(result);
+        }
+      });
+
+      this.socket.on('playerElimination', (eliminationData: any) => {
+        console.log('🎯 Player elimination:', eliminationData);
+        if (this.onPlayerElimination) {
+          this.onPlayerElimination(eliminationData);
+        }
+      });
+
       // Set connection timeout
       setTimeout(() => {
         if (!this.connected) {
@@ -197,6 +221,9 @@ class NetworkManager {
       if (this.inputBuffer.length > 0) {
         // Send the most recent input
         const latestInput = this.inputBuffer[this.inputBuffer.length - 1];
+
+        // Removed spammy debug log
+
         this.socket.emit('playerInput', latestInput);
         this.inputBuffer = [];
         this.lastInputSent = now;

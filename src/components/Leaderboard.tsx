@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { getLeaderboard, Leaderboard as LeaderboardType } from '../lib/supabase'
+import CrownIcon from './CrownIcon'
 
 interface LeaderboardProps {
   isOpen: boolean
@@ -35,7 +36,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isOpen, onClose }) => {
 
   const getRankEmoji = (rank: number) => {
     switch (rank) {
-      case 1: return '🥇'
+      case 1: return <CrownIcon size={20} animated={true} />
       case 2: return '🥈'
       case 3: return '🥉'
       default: return `#${rank}`
