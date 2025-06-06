@@ -3,24 +3,301 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Slither.io Clone</title>
+    <title>SnakePit - Ultimate Multiplayer Snake Arena</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="gameModeSelect" class="menu-screen">
-        <h1>Select Game Mode</h1>
-        <div class="mode-buttons">
-            <button id="classicMode" class="mode-btn">
-                <h2>Classic Mode</h2>
-                <p>Traditional snake gameplay with food and glow orbs</p>
-            </button>
-            <button id="warfareMode" class="mode-btn">
-                <h2>Warfare Mode</h2>
-                <p>Combat mode with weapons and shooting mechanics</p>
-            </button>
+    <div id="landing" class="landing-page">
+        <!-- Animated Background -->
+        <div class="animated-bg"></div>
+
+        <!-- Navigation -->
+        <nav class="main-nav">
+            <div class="nav-logo">
+                <i class="fas fa-snake"></i>
+                <span>SnakePit</span>
+            </div>
+            <div class="nav-links">
+                <button id="playNowBtn" class="nav-btn primary-btn">
+                    <i class="fas fa-play"></i> Play Now
+                </button>
+                <button id="howToPlayBtn" class="nav-btn">
+                    <i class="fas fa-book"></i> How to Play
+                </button>
+                <button id="leaderboardBtn" class="nav-btn">
+                    <i class="fas fa-trophy"></i> Leaderboard
+                </button>
+                <button id="settingsBtn" class="nav-btn">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
+            </div>
+        </nav>
+
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <div class="hero-content">
+                <h1 class="glowing-text">Welcome to SnakePit</h1>
+                <p class="hero-subtitle">The Ultimate Multiplayer Snake Arena</p>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <i class="fas fa-users"></i>
+                        <span class="stat-number">100+</span>
+                        <span class="stat-label">Players per Room</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-bolt"></i>
+                        <span class="stat-number">Real-time</span>
+                        <span class="stat-label">Multiplayer</span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-gamepad"></i>
+                        <span class="stat-number">2</span>
+                        <span class="stat-label">Game Modes</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Game Modes Section -->
+        <section class="game-modes">
+            <h2 class="section-title">Choose Your Battle</h2>
+            <div class="mode-cards">
+                <div id="classicMode" class="mode-card" data-mode="classic">
+                    <div class="mode-header">
+                        <div class="mode-icon">
+                            <i class="fas fa-crown"></i>
+                        </div>
+                        <h2>Classic Mode</h2>
+                        <div class="player-count">
+                            <i class="fas fa-circle pulse"></i>
+                            <span class="online-count">247 Playing</span>
+                        </div>
+                    </div>
+                    <div class="mode-content">
+                        <p>Master the traditional snake gameplay in a multiplayer arena</p>
+                        <div class="feature-grid">
+                            <div class="feature-item">
+                                <i class="fas fa-apple-alt"></i>
+                                <span>Collect Food</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-star"></i>
+                                <span>Grab Orbs</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-trophy"></i>
+                                <span>Top Scores</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-coins"></i>
+                                <span>Earn Points</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="play-btn">
+                        <span>Play Classic</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+
+                <div id="warfareMode" class="mode-card warfare" data-mode="warfare">
+                    <div class="mode-header">
+                        <div class="mode-icon">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <h2>Warfare Mode</h2>
+                        <div class="player-count">
+                            <i class="fas fa-circle pulse"></i>
+                            <span class="online-count">389 Playing</span>
+                        </div>
+                    </div>
+                    <div class="mode-content">
+                        <p>Battle in an intense combat arena with weapons and powerups</p>
+                        <div class="feature-grid">
+                            <div class="feature-item">
+                                <i class="fas fa-gun"></i>
+                                <span>Weapons</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-shield-alt"></i>
+                                <span>Powerups</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-skull"></i>
+                                <span>Combat</span>
+                            </div>
+                            <div class="feature-item">
+                                <i class="fas fa-crown"></i>
+                                <span>Be King</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="play-btn">
+                        <span>Play Warfare</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features-section">
+            <h2 class="section-title">Game Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <i class="fas fa-users"></i>
+                    <h3>Multiplayer Battles</h3>
+                    <p>Join rooms with up to 100 players for epic snake battles</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-bolt"></i>
+                    <h3>Real-time Action</h3>
+                    <p>Powered by Socket.IO for smooth, lag-free gameplay</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-trophy"></i>
+                    <h3>Competitive Play</h3>
+                    <p>Climb the leaderboards and become the ultimate snake</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-magic"></i>
+                    <h3>Special Powers</h3>
+                    <p>Collect powerups and weapons in warfare mode</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- How to Play Modal -->
+    <div id="howToPlay" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-book"></i> How to Play</h2>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="controls-section">
+                    <h3>Basic Controls</h3>
+                    <div class="controls-grid">
+                        <div class="control-item">
+                            <div class="control-icon">
+                                <i class="fas fa-mouse"></i>
+                            </div>
+                            <div class="control-info">
+                                <h4>Mouse Movement</h4>
+                                <p>Move your mouse to control direction</p>
+                            </div>
+                        </div>
+                        <div class="control-item">
+                            <div class="control-icon">
+                                <i class="fas fa-hand-pointer"></i>
+                            </div>
+                            <div class="control-info">
+                                <h4>Boost</h4>
+                                <p>Left Click or Space to boost speed</p>
+                            </div>
+                        </div>
+                        <div class="control-item">
+                            <div class="control-icon">
+                                <i class="fas fa-scroll"></i>
+                            </div>
+                            <div class="control-info">
+                                <h4>Weapon Switch</h4>
+                                <p>Mouse Wheel to switch weapons</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="game-modes-info">
+                    <div class="mode-info classic">
+                        <h3><i class="fas fa-crown"></i> Classic Mode</h3>
+                        <ul>
+                            <li><i class="fas fa-check"></i> Eat food to grow longer</li>
+                            <li><i class="fas fa-check"></i> Collect glowing orbs for bonus points</li>
+                            <li><i class="fas fa-check"></i> Avoid colliding with other snakes</li>
+                            <li><i class="fas fa-check"></i> Become the longest snake to win</li>
+                        </ul>
+                    </div>
+                    <div class="mode-info warfare">
+                        <h3><i class="fas fa-fire"></i> Warfare Mode</h3>
+                        <ul>
+                            <li><i class="fas fa-check"></i> Collect weapons and powerups</li>
+                            <li><i class="fas fa-check"></i> Right Click to shoot weapons</li>
+                            <li><i class="fas fa-check"></i> Headshots eliminate instantly</li>
+                            <li><i class="fas fa-check"></i> Use powerups strategically</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div id="settings" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-cog"></i> Settings</h2>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body settings-grid">
+                <div class="setting-item">
+                    <label>Graphics Quality</label>
+                    <select class="setting-control">
+                        <option>High</option>
+                        <option>Medium</option>
+                        <option>Low</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>Sound Effects</label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="sfx" checked>
+                        <label for="sfx"></label>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label>Music</label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="music" checked>
+                        <label for="music"></label>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label>Show FPS</label>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="fps">
+                        <label for="fps"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboard" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-trophy"></i> Leaderboard</h2>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="leaderboard-tabs">
+                    <button class="tab-btn active" data-tab="classic">Classic Mode</button>
+                    <button class="tab-btn" data-tab="warfare">Warfare Mode</button>
+                </div>
+                <div class="leaderboard-content">
+                    <div class="leaderboard-list">
+                        <!-- Leaderboard entries will be dynamically populated -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Container (Preserved) -->
     <div id="gameContainer" class="hidden">
         <div id="ui">
             <div id="score">Score: 0</div>
@@ -58,7 +335,96 @@
             <button id="restartBtn">Play Again</button>
         </div>
     </div>
-    
+
+    <script>
+        // Enhanced UI Interaction Handlers
+        document.addEventListener('DOMContentLoaded', () => {
+            // Modal handling
+            const modals = {
+                howToPlay: document.getElementById('howToPlay'),
+                settings: document.getElementById('settings'),
+                leaderboard: document.getElementById('leaderboard')
+            };
+
+            const buttons = {
+                howToPlay: document.getElementById('howToPlayBtn'),
+                settings: document.getElementById('settingsBtn'),
+                leaderboard: document.getElementById('leaderboardBtn'),
+                playNow: document.getElementById('playNowBtn')
+            };
+
+            const showModal = (modalId) => {
+                modals[modalId].classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            };
+
+            const hideModal = (modal) => {
+                modal.classList.add('hidden');
+                document.body.style.overflow = 'auto';
+            };
+
+            // Attach modal triggers
+            Object.keys(buttons).forEach(key => {
+                if (key !== 'playNow' && buttons[key]) {
+                    buttons[key].addEventListener('click', () => showModal(key));
+                }
+            });
+
+            // Close modal handlers
+            document.querySelectorAll('.close-modal').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const modal = e.target.closest('.modal');
+                    hideModal(modal);
+                });
+            });
+
+            // Close modals when clicking outside
+            Object.values(modals).forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        hideModal(modal);
+                    }
+                });
+            });
+
+            // Game mode selection
+            const classicCard = document.getElementById('classicMode');
+            const warfareCard = document.getElementById('warfareMode');
+            const landing = document.getElementById('landing');
+            const gameContainer = document.getElementById('gameContainer');
+
+            const startGame = (mode) => {
+                landing.classList.add('hidden');
+                gameContainer.classList.remove('hidden');
+                // The existing game initialization code will handle the rest
+            };
+
+            classicCard.addEventListener('click', () => startGame('classic'));
+            warfareCard.addEventListener('click', () => startGame('warfare'));
+            if (buttons.playNow) {
+                buttons.playNow.addEventListener('click', () => {
+                    document.querySelector('.game-modes').scrollIntoView({ 
+                        behavior: 'smooth' 
+                    });
+                });
+            }
+
+            // Prevent game controls from triggering while in menus
+            document.querySelectorAll('.mode-card, .nav-btn, .modal-content').forEach(element => {
+                element.addEventListener('mousemove', (e) => e.stopPropagation());
+            });
+
+            // Add hover effects for interactive elements
+            document.querySelectorAll('.mode-card').forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    card.classList.add('hover');
+                });
+                card.addEventListener('mouseleave', () => {
+                    card.classList.remove('hover');
+                });
+            });
+        });
+    </script>
     <script src="game_simple.js"></script>
 </body>
 </html>

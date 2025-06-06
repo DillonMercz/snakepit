@@ -75,6 +75,7 @@ function App() {
         ) : (
           <GameContainer
             gameMode={gameMode}
+            userData={userData}
             onBackToMenu={handleBackToMenu}
           />
         )}

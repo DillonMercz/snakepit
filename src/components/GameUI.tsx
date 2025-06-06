@@ -1,5 +1,6 @@
 import React from 'react';
 import CrownIcon from './CrownIcon';
+import CashTracker from './CashTracker';
 import { GameMode } from '../App';
 import { GameState } from './GameContainer';
 
@@ -84,79 +85,197 @@ const getPowerupIcon = (powerupType: string): React.ReactNode => {
   return fallbackIcons[powerupType] || '⚡';
 };
 
+// Helper function to format display names from internal names
+const formatDisplayName = (internalName: string, category: 'weapon' | 'powerup' | 'ammo'): string => {
+  const displayNames: Record<string, Record<string, string>> = {
+    weapon: {
+      'sidearm': 'Snake Fang',
+      'laser_pistol': 'Laser Pistol',
+      'laser_rifle': 'Laser Rifle',
+      'plasma_smg': 'Plasma SMG',
+      'plasma_cannon': 'Plasma Cannon',
+      'rocket_launcher': 'Rocket Launcher',
+      'rail_gun': 'Rail Gun',
+      'minigun': 'Minigun'
+    },
+    powerup: {
+      'helmet': 'Combat Helmet',
+      'armor_plating': 'Armor Plating',
+      'shield_generator': 'Shield Generator',
+      'forcefield': 'Force Field',
+      'speed_boost': 'Speed Boost',
+      'damage_amplifier': 'Damage Amplifier',
+      'battering_ram': 'Battering Ram'
+    },
+    ammo: {
+      'light_energy': 'Energy Cells',
+      'heavy_energy': 'Heavy Energy',
+      'plasma_cells': 'Plasma Cells',
+      'heavy_plasma': 'Heavy Plasma',
+      'rockets': 'Rockets',
+      'rail_slugs': 'Rail Slugs'
+    }
+  };
+
+  return displayNames[category]?.[internalName] ||
+         internalName.split('_').map(word =>
+           word.charAt(0).toUpperCase() + word.slice(1)
+         ).join(' ');
+};
+
+// Helper functions for weapon slot parsing
+const getWeaponName = (weaponSlot: string | undefined): string => {
+  if (!weaponSlot) return '';
+  return weaponSlot.split(' (')[0];
+};
+
+const getWeaponAmmo = (weaponSlot: string | undefined): string => {
+  if (!weaponSlot) return '';
+  const match = weaponSlot.match(/\(([^)]+)\)/);
+  return match ? match[1] : '';
+};
+
+// Helper function to get weapon thumbnails using actual images
+const getWeaponThumbnail = (weaponSlot: string | undefined): React.ReactNode => {
+  if (!weaponSlot) {
+    return <span style={{ fontSize: '1rem', opacity: 0.5 }}>❌</span>;
+  }
+
+  const weaponName = getWeaponName(weaponSlot).toLowerCase();
+  console.log('Weapon name for thumbnail:', weaponName); // Debug log
+
+  // Map weapon names to actual image files in public/assets (using correct file names)
+  const weaponImages: { [key: string]: string } = {
+    'laser pistol': '/assets/Laser Pistol Weapon Icon.png',
+    'laser rifle': '/assets/Laser Rifle Weapon Icon.png',
+    'plasma cannon': '/assets/Plasma Cannon Weapon Icon.png',
+    'plasma smg': '/assets/Plasma SMG Weapon Icon.png',
+    'rail gun': '/assets/Rail Gun Weapon Icon.png',
+    'rocket launcher': '/assets/Rocket Launcher Weapon Icon.png',
+    'minigun': '/assets/Minigun Weapon Icon.png',
+    // Add more variations
+    'pistol': '/assets/Laser Pistol Weapon Icon.png',
+    'rifle': '/assets/Laser Rifle Weapon Icon.png',
+    'cannon': '/assets/Plasma Cannon Weapon Icon.png',
+    'smg': '/assets/Plasma SMG Weapon Icon.png',
+    'rail': '/assets/Rail Gun Weapon Icon.png',
+    'rocket': '/assets/Rocket Launcher Weapon Icon.png',
+    'launcher': '/assets/Rocket Launcher Weapon Icon.png',
+    'gun': '/assets/Rail Gun Weapon Icon.png'
+  };
+
+  // Try to find image by exact weapon name match first
+  if (weaponImages[weaponName]) {
+    return <img src={weaponImages[weaponName]} alt={weaponName} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />;
+  }
+
+  // Try to find image by partial name match
+  for (const [name, imagePath] of Object.entries(weaponImages)) {
+    if (weaponName.includes(name) || name.includes(weaponName)) {
+      return <img src={imagePath} alt={name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />;
+    }
+  }
+
+  // Default weapon icon if no image found - show weapon name for debugging
+  return <span style={{ fontSize: '0.6rem', opacity: 0.7 }} title={weaponName}>🔫</span>;
+};
+
 const GameUI: React.FC<GameUIProps> = ({ gameState, gameMode, onCashOut }) => {
   // Calculate if cashout is available (player has gained cash beyond initial wager)
   const initialWager = 50; // Default wager amount
   const currentCash = gameState.cashBalance || gameState.score || 0;
   const canCashOut = currentCash > initialWager;
   const profit = currentCash - initialWager;
+
+  // Inventory collapse state
+  const [inventoryExpanded, setInventoryExpanded] = React.useState(false);
+
+  const toggleInventory = () => {
+    setInventoryExpanded(!inventoryExpanded);
+  };
+
+  // Keyboard support for 'I' key
+  React.useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === 'i' && gameMode === 'warfare') {
+        event.preventDefault();
+        toggleInventory();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [gameMode, inventoryExpanded]);
   return (
     <>
-      {/* Main UI Stats - Top Left */}
-      <div className="game-ui">
-        <div className="ui-stats">
-          {gameMode === 'classic' && (
-            <div className="stat-item stat-score neon-text neon-yellow">
-              🏆 Score: {(gameState.score || 0).toLocaleString()}
-            </div>
-          )}
-          <div className="stat-item stat-cash neon-text neon-green">
-            💰 Cash: ${(gameState.cashBalance || gameState.score || 0).toLocaleString()}
-          </div>
-          <div className="stat-item stat-length neon-text neon-cyan">
-            🐍 Length: {gameState.length || 0}
-          </div>
-          <div className="stat-item stat-boost neon-text neon-orange">
-            ⚡ Boost: {Math.round(gameState.boost || 0)}%
-          </div>
+      {/* Cash Tracker - Under Status Bar */}
+      <CashTracker
+        gameState={gameState}
+        gameMode={gameMode}
+        onCashOut={onCashOut}
+      />
 
-          {/* King Status Indicator */}
-          {gameState.isKing && (
-            <div className="stat-item stat-king neon-text neon-yellow">
-              <CrownIcon size={16} animated={true} /> King of the Pit!
-            </div>
-          )}
-
-          {/* Cashout Button */}
-          <div className="cashout-container">
-            <button
-              className={`cashout-button neon-button ${canCashOut ? 'neon-green' : 'neon-disabled'}`}
-              onClick={canCashOut ? onCashOut : undefined}
-              disabled={!canCashOut}
-              title={canCashOut
-                ? `Cash out and secure your profit of $${profit.toLocaleString()}! (Hotkey: C)`
-                : `Gain cash beyond your $${initialWager} wager to cash out`
-              }
-            >
-              💰 {canCashOut ? `CASH OUT (+$${profit.toLocaleString()})` : 'CASH OUT (No Profit)'}
-            </button>
-            <div className="cashout-hint neon-text neon-dim">
-              {canCashOut ? "Press 'C' to cash out" : `Need profit > $${initialWager} to cash out`}
-            </div>
-          </div>
-
-          {gameMode === 'warfare' && (
-            <>
-              <div className="stat-item stat-weapon neon-text neon-pink">
-                🔫 {gameState.weapon} {gameState.weaponAmmo}
-              </div>
-              <div className="stat-item stat-cooldown neon-text neon-purple">
-                ⏱️ {gameState.cooldown}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Weapon Inventory - Bottom Right */}
+      {/* Weapon Inventory - Bottom Left */}
       {gameMode === 'warfare' && (
-        <div className="weapon-inventory">
-          <div className="inventory-header">
-            <span className="inventory-title neon-text neon-purple">🎯 Arsenal</span>
+        <div className={`weapon-inventory ${inventoryExpanded ? 'expanded' : 'collapsed'}`}>
+          {/* Compact Weapon Slots - Thumbnail Layout */}
+          <div
+            className="inventory-slots-compact"
+            onClick={!inventoryExpanded ? toggleInventory : undefined}
+            style={{ cursor: !inventoryExpanded ? 'pointer' : 'default' }}
+            title={!inventoryExpanded ? 'Click to expand inventory (I)' : ''}
+          >
+            <div className={`inventory-slot-compact ${gameState.currentSlot === 'primaryWeapon' ? 'active' : ''}`}>
+              <div className="slot-key">1</div>
+              <div className="weapon-thumbnail">
+                {getWeaponThumbnail(gameState.weaponSlots?.primary)}
+              </div>
+              <div className="slot-info">
+                <div className="slot-weapon-name">{getWeaponName(gameState.weaponSlots?.primary) || 'Empty'}</div>
+                <div className="slot-ammo">{getWeaponAmmo(gameState.weaponSlots?.primary) || ''}</div>
+              </div>
+            </div>
+
+            <div className={`inventory-slot-compact ${gameState.currentSlot === 'secondaryWeapon' ? 'active' : ''}`}>
+              <div className="slot-key">2</div>
+              <div className="weapon-thumbnail">
+                {getWeaponThumbnail(gameState.weaponSlots?.secondary)}
+              </div>
+              <div className="slot-info">
+                <div className="slot-weapon-name">{getWeaponName(gameState.weaponSlots?.secondary) || 'Empty'}</div>
+                <div className="slot-ammo">{getWeaponAmmo(gameState.weaponSlots?.secondary) || ''}</div>
+              </div>
+            </div>
+
+            <div className={`inventory-slot-compact ${gameState.currentSlot === 'sidearm' ? 'active' : ''}`}>
+              <div className="slot-key">3</div>
+              <div className="weapon-thumbnail">
+                <img src="/assets/Snake Fang Weapon Icon.png" alt="Snake Fang" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              </div>
+              <div className="slot-info">
+                <div className="slot-weapon-name">Snake Fang</div>
+                <div className="slot-ammo">∞</div>
+              </div>
+            </div>
           </div>
 
-          {/* Horizontal Weapon Slots */}
-          <div className="inventory-slots-horizontal">
+          {/* Expanded Content */}
+          {inventoryExpanded && (
+            <div className="inventory-expanded-content">
+              {/* Expanded Header with Close Button */}
+              <div className="inventory-header">
+                <span className="inventory-title neon-text neon-purple">🎯 Arsenal</span>
+                <button
+                  className="inventory-toggle neon-button neon-purple"
+                  onClick={toggleInventory}
+                  title="Collapse Inventory (I)"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Full Weapon Slots */}
+              <div className="inventory-slots-horizontal">
             <div className={`inventory-slot-horizontal ${gameState.currentSlot === 'primaryWeapon' ? 'active' : ''}`}>
               <div className="slot-key">1</div>
               <div className="slot-content-horizontal">
@@ -214,6 +333,7 @@ const GameUI: React.FC<GameUIProps> = ({ gameState, gameMode, onCashOut }) => {
                 Object.entries(gameState.ammoInventory).map(([ammoType, amount]) => (
                   <div key={ammoType} className="ammo-type">
                     <div className="ammo-icon">{getAmmoIcon(ammoType)}</div>
+                    <div className="ammo-name">{formatDisplayName(ammoType, 'ammo')}</div>
                     <div className="ammo-count">{Math.floor(amount)}</div>
                   </div>
                 ))
@@ -231,7 +351,7 @@ const GameUI: React.FC<GameUIProps> = ({ gameState, gameMode, onCashOut }) => {
                 {gameState.powerupInventory.map((powerup, index) => (
                   <div key={index} className="powerup-type">
                     <div className="powerup-icon">{getPowerupIcon(powerup.type)}</div>
-                    <div className="powerup-name">{powerup.name}</div>
+                    <div className="powerup-name">{powerup.name || formatDisplayName(powerup.type, 'powerup')}</div>
                   </div>
                 ))}
               </div>
@@ -264,9 +384,11 @@ const GameUI: React.FC<GameUIProps> = ({ gameState, gameMode, onCashOut }) => {
             </div>
           )}
 
-          <div className="inventory-controls">
-            <span className="control-hint neon-text neon-cyan">1-3: Switch | Q: Quick Switch</span>
-          </div>
+              <div className="inventory-controls">
+                <span className="control-hint neon-text neon-cyan">1-3: Switch | Q: Quick Switch</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>

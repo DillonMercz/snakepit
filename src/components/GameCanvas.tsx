@@ -10,13 +10,19 @@ interface GameCanvasProps {
   gameInstanceRef: React.MutableRefObject<any>;
   onGameStateUpdate: (state: GameState) => void;
   onElimination?: (eliminationData: any) => void;
+  userData?: {
+    username: string;
+    wager: number;
+    xrpBalance: number;
+  } | null;
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({
   gameMode,
   gameInstanceRef,
   onGameStateUpdate,
-  onElimination
+  onElimination,
+  userData
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const initializingRef = useRef<boolean>(false);
@@ -44,8 +50,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           canvasRef.current.id = 'gameCanvas';
         }
 
-        // Initialize the game with canvas and game mode
-        const gameInstance = new ClientGame(canvasRef.current, gameMode || 'classic');
+        // Initialize the game with canvas, game mode, and user data
+        const gameInstance = new ClientGame(canvasRef.current, gameMode || 'classic', userData as any);
         gameInstanceRef.current = gameInstance;
 
         // Set up callbacks for React state updates

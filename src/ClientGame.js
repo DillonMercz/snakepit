@@ -2,12 +2,13 @@ import NetworkManager from './utils/NetworkManager';
 import GamepadManager from './controllers/GamepadManager.js';
 
 class ClientGame {
-  constructor(canvas, gameMode = 'classic') {
+  constructor(canvas, gameMode = 'classic', userData = null) {
     console.log('ClientGame constructor started');
 
     this.canvas = canvas;
     this.ctx = this.canvas.getContext('2d');
     this.gameMode = gameMode;
+    this.userData = userData;
 
     // Minimap setup
     this.minimap = null;
@@ -280,11 +281,12 @@ class ClientGame {
   async joinGame() {
     const gameData = {
       gameMode: this.gameMode,
-      username: 'Player_' + Math.floor(Math.random() * 1000),
-      wager: 50,
+      username: this.userData?.username || 'Player_' + Math.floor(Math.random() * 1000),
+      wager: this.userData?.wager || 50,
       color: '#FFD700'
     };
 
+    console.log('🎮 Joining game with user data:', gameData);
     this.networkManager.joinGame(gameData);
   }
 
@@ -312,12 +314,19 @@ class ClientGame {
     // Find local player
     this.localPlayer = this.gameState.players?.find(p => p.id === this.playerId);
 
-    // Check if local player cashed out (ORIGINAL BEHAVIOR)
-    if (this.localPlayer && this.localPlayer.cashedOut && !this.cashedOut) {
-      console.log('💰 Player cashed out - entering spectate mode');
-      this.cashedOut = true;
-      this.spectating = true;
-      this.spectateTarget = 0;
+    // Update cashout state based on server state
+    if (this.localPlayer) {
+      if (this.localPlayer.cashedOut && !this.cashedOut) {
+        console.log('💰 Player cashed out - entering spectate mode');
+        this.cashedOut = true;
+        this.spectating = true;
+        this.spectateTarget = 0;
+      } else if (!this.localPlayer.cashedOut && this.cashedOut) {
+        console.log('🔄 Player respawned - resetting cashout state');
+        this.cashedOut = false;
+        this.spectating = false;
+        this.spectateTarget = 0;
+      }
     }
 
     // Update camera to follow local player or spectated player
@@ -953,14 +962,21 @@ class ClientGame {
    * Request respawn from server (ORIGINAL BEHAVIOR: Manual respawn)
    */
   requestRespawn() {
-    if (!this.connected || !this.localPlayer || this.localPlayer.alive) return;
+    if (!this.connected) return;
 
     console.log('🔄 Requesting respawn from server...');
 
-    // Reset local state for respawn
+    // Reset all local state for respawn
     this.spectating = false;
     this.cashedOut = false;
     this.spectateTarget = 0;
+
+    // Reset local player state
+    if (this.localPlayer) {
+      this.localPlayer.alive = false;
+      this.localPlayer.cashedOut = false;
+      this.localPlayer.collectedCash = this.localPlayer.wager || 50;
+    }
 
     // Send respawn request to server
     this.networkManager.socket.emit('playerRespawn', {
@@ -972,8 +988,47 @@ class ClientGame {
    * Restart method called by GameContainer (ORIGINAL BEHAVIOR: Manual respawn)
    */
   restart() {
-    console.log('🔄 Restart called - requesting respawn for multiplayer');
-    this.requestRespawn();
+    console.log('🔄 Restart called - resetting game state');
+
+    if (!this.connected) {
+      console.log('❌ Cannot restart - not connected to server');
+      return;
+    }
+
+    // Reset all game state
+    this.spectating = false;
+    this.cashedOut = false;
+    this.spectateTarget = 0;
+
+    // Reset local player state if it exists
+    if (this.localPlayer) {
+      this.localPlayer.alive = false;
+      this.localPlayer.cashedOut = false;
+      this.localPlayer.collectedCash = this.localPlayer.wager || 50;
+      this.localPlayer.cashoutBalance = 0;
+    }
+
+    // Reset camera
+    this.camera = { x: this.worldWidth / 2, y: this.worldHeight / 2, zoom: 1.0 };
+
+    // Request respawn from server with additional state info
+    console.log('🔄 Requesting respawn from server');
+    this.networkManager.socket.emit('playerRespawn', {
+      timestamp: Date.now(),
+      resetState: true // Signal that this is a full reset
+    });
+
+    // Force UI update
+    if (this.onStateUpdate && this.localPlayer) {
+      this.onStateUpdate({
+        isGameOver: false,
+        cashedOut: false,
+        spectating: false,
+        cashoutAmount: 0,
+        score: this.localPlayer.wager || 50,
+        cashBalance: this.localPlayer.wager || 50
+      });
+    }
   }
 
   startRenderLoop() {
@@ -1236,44 +1291,83 @@ class ClientGame {
   }
 
   drawVacuumTrail(food, snake, foodX, foodY) {
+    // Skip if food is collected or invalid
+    if (food.collected || !snake.segments || snake.segments.length === 0) return;
+
     const headX = snake.segments[0].x - this.camera.x;
     const headY = snake.segments[0].y - this.camera.y;
 
-    // Calculate direction from food to snake head
+    // Calculate direction and distance
     const dx = headX - foodX;
     const dy = headY - foodY;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (distance === 0) return;
+    // Skip if too close to head (about to be collected)
+    const collectRadius = snake.size * (snake.boosting ? 1.5 : 1.0); // Increased from 1.2 and 0.8
+    if (distance < collectRadius) return;
 
     const normalizedDx = dx / distance;
     const normalizedDy = dy / distance;
 
-    // Draw multiple particle trails
-    const numParticles = 6;
-    const time = Date.now() * 0.01;
+    // Calculate vacuum effect intensity based on distance and boost state
+    const vacuumRadius = snake.size * (snake.boosting ? 6 : 4); // Increased from 5 and 3.5
+    const intensityRatio = 1 - (distance / vacuumRadius);
+    const effectIntensity = Math.max(0.3, Math.min(1, intensityRatio * (snake.boosting ? 2.5 : 2.0))); // Increased from 0.2 and 2/1.5
 
-    for (let i = 0; i < numParticles; i++) {
-      const progress = (time + i * 10) % 30 / 30;
-      const particleX = foodX + normalizedDx * distance * progress;
-      const particleY = foodY + normalizedDy * distance * progress;
-
-      this.ctx.fillStyle = this.addAlpha(snake.color, 0.8 - progress * 0.6);
-      this.ctx.beginPath();
-      this.ctx.arc(particleX, particleY, 2 * (1 - progress), 0, Math.PI * 2);
-      this.ctx.fill();
-    }
-
-    // Draw main vacuum line
-    const lineAlpha = 0.3 + Math.sin(time * 0.5) * 0.2;
-    this.ctx.strokeStyle = this.addAlpha(snake.color, lineAlpha);
-    this.ctx.lineWidth = 2;
-    this.ctx.setLineDash([5, 3]);
+    // Draw vacuum effect with dynamic intensity
+    const time = Date.now() * (snake.boosting ? 0.003 : 0.002); // Faster animation, increased from 0.002/0.001
+    
+    // Draw main vacuum line with pulsing effect
+    const lineAlpha = (0.2 + Math.sin(time * 2) * 0.08) * (snake.boosting ? 0.8 : 1); // Increased visibility
+    this.ctx.strokeStyle = this.addAlpha(snake.color, lineAlpha * effectIntensity);
+    this.ctx.lineWidth = snake.boosting ? 2.5 : 2; // Increased from 2/1.5
+    this.ctx.setLineDash(snake.boosting ? [2, 2] : [3, 3]); // Tighter dash pattern
     this.ctx.beginPath();
     this.ctx.moveTo(foodX, foodY);
     this.ctx.lineTo(headX, headY);
     this.ctx.stroke();
     this.ctx.setLineDash([]);
+
+    // Calculate number of particles based on distance and boost state
+    const baseParticles = Math.floor(distance / (snake.boosting ? 15 : 20)); // More particles
+    const numParticles = Math.min(snake.boosting ? 20 : 15, Math.max(6, baseParticles)); // Increased from 16/12 and 4
+
+    // Draw particles with improved visuals
+    for (let i = 0; i < numParticles; i++) {
+      // Calculate particle position with wave effect
+      const baseProgress = ((time * (snake.boosting ? 5 : 4) + i / numParticles) % 1); // Faster movement
+      const waveAmplitude = snake.boosting ? 4 : 3; // Increased from 3/2
+      const waveOffset = Math.sin(baseProgress * Math.PI * 4) * waveAmplitude;
+      
+      // Add slight curve to particle path when boosting
+      const curveOffset = snake.boosting ? 
+        Math.sin(baseProgress * Math.PI) * 5 * (i % 2 ? 1 : -1) : 0; // Increased from 4
+
+      const particleX = foodX + normalizedDx * distance * baseProgress + 
+        (normalizedDy * curveOffset);
+      const particleY = foodY + normalizedDy * distance * baseProgress + 
+        (-normalizedDx * curveOffset) + waveOffset;
+
+      // Particle size and alpha based on progress and intensity
+      const particleProgress = 1 - baseProgress;
+      const particleSize = (snake.boosting ? 4 : 3) * particleProgress * effectIntensity; // Increased from 3/2
+      const particleAlpha = (snake.boosting ? 0.9 : 0.7) * particleProgress * effectIntensity; // Increased from 0.8/0.6
+
+      // Draw particle with glow
+      const glowSize = particleSize * (snake.boosting ? 3 : 2.5); // Increased from 2.5/2
+      const glow = this.ctx.createRadialGradient(
+        particleX, particleY, 0,
+        particleX, particleY, glowSize
+      );
+      glow.addColorStop(0, this.addAlpha(snake.color, particleAlpha));
+      glow.addColorStop(0.4, this.addAlpha(snake.color, particleAlpha * 0.4)); // Adjusted from 0.5/0.3
+      glow.addColorStop(1, 'transparent');
+
+      this.ctx.fillStyle = glow;
+      this.ctx.beginPath();
+      this.ctx.arc(particleX, particleY, glowSize, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
   }
 
   drawGlowOrbs() {
@@ -1788,10 +1882,7 @@ class ClientGame {
     // Draw all active powerup effects
     this.drawActivePowerupEffects(snake, x, y, headSize);
 
-    // Draw crown if this snake is the king
-    if (this.isKing(snake)) {
-      this.drawCrown(snake, x, y, headSize);
-    }
+    // Note: Crown is now drawn above the player info tag, not above the head
   }
 
   drawWagerDisplay(snake) {
@@ -1800,28 +1891,197 @@ class ClientGame {
     const headX = snake.segments[0].x - this.camera.x;
     const headY = snake.segments[0].y - this.camera.y;
 
-    // Display above the snake
-    const displayY = headY - snake.size * 2 - 20;
+    // Skip if off-screen
+    if (headX < -100 || headX > this.canvas.width + 100 || headY < -100 || headY > this.canvas.height + 100) {
+      return;
+    }
 
-    // Background
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    this.ctx.fillRect(headX - 30, displayY - 10, 60, 20);
+    const isKing = this.isKing(snake);
+    const cash = snake.cash || 0;
+    const username = snake.username || 'Player';
 
-    // Border
-    this.ctx.strokeStyle = snake.color;
-    this.ctx.lineWidth = 2;
-    this.ctx.strokeRect(headX - 30, displayY - 10, 60, 20);
+    // Enhanced positioning - crown above tag (bigger crown, raised higher)
+    const baseDisplayY = headY - snake.size * 1.8; // Closer to head
+    const crownHeight = isKing ? 35 : 0; // More space for bigger crown
+    const tagY = baseDisplayY - crownHeight;
+    const crownY = tagY - 45; // Crown raised even higher above tag (was 25)
 
-    // Text
-    this.ctx.fillStyle = '#FFD700';
-    this.ctx.font = '12px Arial';
+    this.ctx.save();
+
+    // Draw crown above the tag if player is king
+    if (isKing) {
+      this.drawCrownAboveTag(headX, crownY, snake.size);
+    }
+
+    // Enhanced player info card design
+    this.drawPlayerInfoCard(headX, tagY, username, cash, snake.color, isKing);
+
+    this.ctx.restore();
+  }
+
+  drawPlayerInfoCard(centerX, centerY, username, cash, playerColor, isKing) {
+    this.ctx.save();
     this.ctx.textAlign = 'center';
-    this.ctx.fillText(`$${snake.cash || 0}`, headX, displayY + 3);
+    this.ctx.textBaseline = 'middle';
 
-    // Username
-    this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.font = '10px Arial';
-    this.ctx.fillText(snake.username || 'Player', headX, displayY - 15);
+    // Username with enhanced readability
+    this.ctx.font = 'bold 12px "Orbitron", monospace';
+
+    // Add shadow for better contrast
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.fillText(username, centerX + 1, centerY - 5);
+
+    // Draw thicker colorful border around username
+    this.ctx.lineWidth = 3;
+    this.ctx.strokeStyle = isKing ? '#FFD700' : playerColor;
+    this.ctx.strokeText(username, centerX, centerY - 6);
+
+    // Username text (dark grey inside the border)
+    this.ctx.fillStyle = '#333333';
+    this.ctx.fillText(username, centerX, centerY - 6);
+
+    // Cash with shadow for readability (no border)
+    const formattedCash = this.formatCurrency(cash);
+    this.ctx.font = 'bold 11px "Orbitron", monospace';
+
+    // Add shadow for better readability
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.fillText(formattedCash, centerX + 1, centerY + 9);
+
+    // Main cash text
+    this.ctx.fillStyle = isKing ? '#FFD700' : '#00FF00';
+    this.ctx.fillText(formattedCash, centerX, centerY + 8);
+
+    this.ctx.restore();
+  }
+
+  // Removed unused helper functions - now using inline minimal design
+
+  formatCurrency(amount) {
+    if (amount >= 1000000) {
+      return `$${(amount / 1000000).toFixed(1)}M`;
+    } else if (amount >= 1000) {
+      return `$${(amount / 1000).toFixed(1)}K`;
+    } else {
+      return `$${Math.floor(amount)}`;
+    }
+  }
+
+  drawRoundedRect(x, y, width, height, radius) {
+    this.ctx.beginPath();
+    this.ctx.moveTo(x + radius, y);
+    this.ctx.lineTo(x + width - radius, y);
+    this.ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    this.ctx.lineTo(x + width, y + height - radius);
+    this.ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    this.ctx.lineTo(x + radius, y + height);
+    this.ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    this.ctx.lineTo(x, y + radius);
+    this.ctx.quadraticCurveTo(x, y, x + radius, y);
+    this.ctx.closePath();
+  }
+
+  drawMiniCrown(x, y) {
+    const crownSize = 8;
+
+    this.ctx.save();
+
+    // Crown base
+    this.ctx.fillStyle = '#FFD700';
+    this.ctx.fillRect(x - crownSize, y - crownSize/4, crownSize * 2, crownSize/2);
+
+    // Crown spikes (simplified)
+    this.ctx.beginPath();
+    this.ctx.moveTo(x - crownSize, y - crownSize/4);
+    this.ctx.lineTo(x - crownSize/2, y - crownSize);
+    this.ctx.lineTo(x, y - crownSize/4);
+    this.ctx.lineTo(x + crownSize/2, y - crownSize);
+    this.ctx.lineTo(x + crownSize, y - crownSize/4);
+    this.ctx.fill();
+
+    // Crown gem
+    this.ctx.fillStyle = '#FF0000';
+    this.ctx.beginPath();
+    this.ctx.arc(x, y - crownSize/4, crownSize/4, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    this.ctx.restore();
+  }
+
+  drawCrownAboveTag(centerX, centerY, headSize) {
+    const crownSize = headSize * 3.0; // Even larger crown for better visibility
+
+    this.ctx.save();
+
+    // Load and draw crown icon from assets (glow will be handled in drawCrownIcon)
+    this.drawCrownIcon(centerX, centerY, crownSize);
+
+    this.ctx.restore();
+  }
+
+  drawCrownIcon(centerX, centerY, size) {
+    // Try to use the crown icon from assets
+    if (!this.crownImage) {
+      this.crownImage = new Image();
+      this.crownImage.src = '/assets/King_of_the_Pit_Crown_Icon.png';
+
+      // Fallback to simple crown if image fails to load
+      this.crownImage.onerror = () => {
+        this.crownImageFailed = true;
+      };
+    }
+
+    // Check if image is loaded successfully and not broken
+    if (this.crownImage.complete && !this.crownImageFailed && this.crownImage.naturalWidth > 0) {
+      try {
+        // Set shadow for glow effect before drawing
+        this.ctx.shadowColor = 'rgba(0, 255, 0, 0.7)'; // Green glow, 70% opacity
+        this.ctx.shadowBlur = 15; // Glow radius
+
+        // Draw the crown icon
+        const iconSize = size * 1.2;
+        this.ctx.drawImage(
+          this.crownImage,
+          centerX - iconSize/2,
+          centerY - iconSize/2,
+          iconSize,
+          iconSize
+        );
+
+        // Reset shadow properties after drawing to avoid affecting other elements
+        this.ctx.shadowColor = 'transparent';
+        this.ctx.shadowBlur = 0;
+
+      } catch (error) {
+        // If drawing fails, mark as failed and use fallback
+        this.crownImageFailed = true;
+        // Ensure shadow is off for fallback if error occurred after setting it
+        this.ctx.shadowColor = 'transparent';
+        this.ctx.shadowBlur = 0;
+        this.drawSimpleCrownFallback(centerX, centerY, size);
+      }
+    } else {
+      // Image not loaded, failed, or broken - use simple fallback
+      this.drawSimpleCrownFallback(centerX, centerY, size);
+    }
+  }
+
+  drawSimpleCrownFallback(centerX, centerY, size) {
+    // Simple crown fallback
+    this.ctx.fillStyle = '#FFD700';
+
+    // Crown base
+    this.ctx.fillRect(centerX - size, centerY, size * 2, size * 0.3);
+
+    // Crown spikes
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerX - size, centerY);
+    this.ctx.lineTo(centerX - size/2, centerY - size * 0.6);
+    this.ctx.lineTo(centerX, centerY - size * 0.4);
+    this.ctx.lineTo(centerX + size/2, centerY - size * 0.6);
+    this.ctx.lineTo(centerX + size, centerY);
+    this.ctx.closePath();
+    this.ctx.fill();
   }
 
   addAlpha(color, alpha) {
@@ -1876,53 +2136,59 @@ class ClientGame {
   }
 
   drawActivePowerupEffects(snake, headX, headY, headSize) {
-    // Check if snake has activePowerups array
-    if (!snake.activePowerups || !Array.isArray(snake.activePowerups)) {
+    if (!snake || !snake.activePowerups || snake.activePowerups.length === 0) {
       return;
     }
 
-    // Draw effects for each active powerup
+    // Ensure segments are available for body effects
+    const segments = snake.segments || [{ x: headX, y: headY, size: headSize }];
+
     snake.activePowerups.forEach(powerup => {
+      if (!powerup || !powerup.type) return;
+
+      // Check if powerup is still active (using expirationTime if available)
+      // This is a client-side check; server is the source of truth
+      if (powerup.expirationTime && Date.now() > powerup.expirationTime && powerup.duration !== Infinity) {
+        // console.log(`Client: Powerup ${powerup.type} visually expired`);
+        return; // Don't draw expired powerups
+      }
+
       switch (powerup.type) {
         case 'helmet':
           this.drawHelmet(snake, headX, headY, headSize);
           break;
         case 'forcefield':
-          this.drawForcefieldEffect(snake, headX, headY, headSize);
-          this.drawSnakeBodyGlow(snake, '#00FFFF', 0.3); // Cyan glow for forcefield
+          this.drawForcefieldEffect(snake, segments, headSize);
+          break;
+        case 'battering_ram':
+          // Pass boost status to the drawing function
+          this.drawBatteringRamEffect(snake, headX, headY, headSize, snake.boosting || false);
           break;
         case 'armor_plating':
-          this.drawArmorPlatingEffect(snake, headX, headY, headSize);
-          this.drawSnakeBodyGlow(snake, '#CCCCCC', 0.2); // Silver glow for armor
+          this.drawArmorPlatingEffect(snake, segments, headSize); // Pass segments
           break;
         case 'shield_generator':
           this.drawShieldGeneratorEffect(snake, headX, headY, headSize);
-          this.drawSnakeBodyGlow(snake, '#FFFF00', 0.4); // Yellow glow for shield
-          break;
-        case 'battering_ram':
-          this.drawBatteringRamEffect(snake, headX, headY, headSize);
-          this.drawSnakeBodyGlow(snake, '#FF6600', 0.3); // Orange glow for battering ram
           break;
         case 'speed_boost':
-          this.drawSpeedBoostEffect(snake, headX, headY, headSize);
-          this.drawSnakeBodyGlow(snake, '#00FF00', 0.25); // Green glow for speed
+          this.drawSpeedBoostEffect(snake, segments, headSize, snake.boosting || false); // Pass segments & boost
           break;
         case 'damage_amplifier':
-          this.drawDamageAmplifierEffect(snake, headX, headY, headSize);
-          this.drawSnakeBodyGlow(snake, '#FF0000', 0.3); // Red glow for damage
+          this.drawDamageAmplifierEffect(snake, segments, headSize); // Pass segments
           break;
+        // Add other powerup draw calls here
       }
     });
-
-    // Draw powerup status indicators
-    this.drawPowerupStatusIndicators(snake, headX, headY, headSize);
   }
 
   drawHelmet(snake, headX, headY, headSize) {
     const time = Date.now() * 0.001;
-    const helmetHealth = snake.getHelmetHealth ? snake.getHelmetHealth() : 500;
-    const maxHelmetHealth = 500;
-    const healthRatio = helmetHealth / maxHelmetHealth;
+    
+    // Get helmet health data from active powerups
+    const activeHelmet = snake.activePowerups?.find(p => p.type === 'helmet');
+    const helmetHealth = activeHelmet ? activeHelmet.currentHelmetHealth : 0;
+    const maxHelmetHealth = activeHelmet ? activeHelmet.helmetHealth : 500; // Use original helmetHealth from config
+    const healthRatio = maxHelmetHealth > 0 ? helmetHealth / maxHelmetHealth : 0;
 
     // Helmet size slightly larger than head
     const helmetSize = headSize * 1.15;
@@ -1989,87 +2255,160 @@ class ClientGame {
       this.ctx.setLineDash([]);
     }
 
+    // Helmet health indicator (small bar above helmet) - similar to gameLogic.js
+    const barWidth = helmetSize * 1.5;
+    const barHeight = 4;
+    const barX = headX - barWidth / 2;
+    const barY = headY - helmetSize - 10; // Adjusted Y position to be above helmet
+
+    // Background bar
+    this.ctx.fillStyle = '#333333';
+    this.ctx.fillRect(barX, barY, barWidth, barHeight);
+
+    // Health bar
+    const healthBarColor = healthRatio > 0.6 ? '#44AA44' : healthRatio > 0.3 ? '#AAAA44' : '#AA4444';
+    this.ctx.fillStyle = healthBarColor;
+    this.ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
+
+    // Bar outline
+    this.ctx.strokeStyle = '#FFFFFF';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(barX, barY, barWidth, barHeight);
+
     this.ctx.restore();
   }
 
-  drawForcefieldEffect(snake, headX, headY, headSize) {
-    const time = Date.now() * 0.001;
-    const shieldSize = headSize * 2.5;
+  drawForcefieldEffect(snake, segments, headSize) {
+    if (!snake || !segments || segments.length === 0) return;
+    const time = Date.now() * 0.002;
 
     this.ctx.save();
 
-    // Rotating energy shield
-    const rotationSpeed = time * 2;
+    const forcefieldBaseColor = '0, 255, 255'; // Cyan base (POWERUP_CONFIGS.forcefield.color is #00FFFF)
+    const pulse = (Math.sin(time * 4) + 1) / 2; // Normalized pulse (0 to 1)
+    const glowIntensity = 0.3 + pulse * 0.4; // Pulsating intensity for the glow (0.3 to 0.7)
+    const lineWidth = (headSize * 0.2) * (1 + pulse * 0.5); // Line width also pulses
 
-    // Multiple shield layers for depth
-    for (let layer = 0; layer < 3; layer++) {
-      const layerSize = shieldSize * (0.8 + layer * 0.1);
-      const layerAlpha = 0.3 - layer * 0.1;
-
-      this.ctx.save();
-      this.ctx.translate(headX, headY);
-      this.ctx.rotate(rotationSpeed + layer * Math.PI / 3);
-
-      // Hexagonal energy shield
-      this.ctx.strokeStyle = `rgba(0, 255, 255, ${layerAlpha})`;
-      this.ctx.lineWidth = 3;
-      this.ctx.setLineDash([10, 5]);
-      this.ctx.lineDashOffset = time * 20;
-
-      this.ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * Math.PI * 2;
-        const x = Math.cos(angle) * layerSize;
-        const y = Math.sin(angle) * layerSize;
-        if (i === 0) {
-          this.ctx.moveTo(x, y);
-        } else {
-          this.ctx.lineTo(x, y);
-        }
-      }
-      this.ctx.closePath();
-      this.ctx.stroke();
-
-      this.ctx.restore();
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    
+    // Outer glow layer
+    this.ctx.beginPath();
+    this.ctx.moveTo(segments[0].x, segments[0].y);
+    for (let i = 1; i < segments.length; i++) {
+      const seg = segments[i];
+      const prevSeg = segments[i-1];
+      // Use quadratic curve for smoother transitions between segments
+      const controlX = (prevSeg.x + seg.x) / 2;
+      const controlY = (prevSeg.y + seg.y) / 2;
+      this.ctx.quadraticCurveTo(prevSeg.x, prevSeg.y, controlX, controlY); 
+    }
+    // Ensure the last segment is reached if using curves
+    if (segments.length > 1) {
+        this.ctx.lineTo(segments[segments.length-1].x, segments[segments.length-1].y);
     }
 
-    this.ctx.setLineDash([]);
+    this.ctx.lineWidth = lineWidth + (headSize * 0.2); // Slightly thicker for the outer halo
+    this.ctx.strokeStyle = `rgba(${forcefieldBaseColor}, ${glowIntensity * 0.5})`; // Softer outer halo
+    this.ctx.stroke();
+
+    // Inner, more defined line
+    this.ctx.beginPath();
+    this.ctx.moveTo(segments[0].x, segments[0].y);
+    for (let i = 1; i < segments.length; i++) {
+      const seg = segments[i];
+      const prevSeg = segments[i-1];
+      const controlX = (prevSeg.x + seg.x) / 2;
+      const controlY = (prevSeg.y + seg.y) / 2;
+      this.ctx.quadraticCurveTo(prevSeg.x, prevSeg.y, controlX, controlY);
+    }
+    if (segments.length > 1) {
+        this.ctx.lineTo(segments[segments.length-1].x, segments[segments.length-1].y);
+    }
+    this.ctx.lineWidth = lineWidth;
+    this.ctx.strokeStyle = `rgba(${forcefieldBaseColor}, ${glowIntensity})`;
+    this.ctx.stroke();
+
+    // Add some crackling particles along the shield for more dynamism
+    const numParticles = segments.length * 0.5; // More particles for longer snakes
+    for (let i = 0; i < numParticles; i++) {
+      const segIndex = Math.floor(Math.random() * segments.length);
+      const segment = segments[segIndex]; 
+      const particleAngle = Math.random() * Math.PI * 2;
+      const particleDist = (segment.size || headSize) * 0.5 + Math.random() * lineWidth;
+      const pX = segment.x + Math.cos(particleAngle) * particleDist;
+      const pY = segment.y + Math.sin(particleAngle) * particleDist;
+      const pSize = (1 + Math.random() * 2) * (0.5 + pulse); // Pulsating size
+
+      this.ctx.beginPath();
+      this.ctx.arc(pX, pY, pSize, 0, Math.PI * 2);
+      this.ctx.fillStyle = `rgba(200, 255, 255, ${0.5 + pulse * 0.5})`; // Lighter, more opaque particles
+      this.ctx.fill();
+    }
+
     this.ctx.restore();
   }
 
-  drawArmorPlatingEffect(snake, headX, headY, headSize) {
-    const time = Date.now() * 0.001;
+  drawArmorPlatingEffect(snake, segments, baseHeadSize) {
+    if (!segments || segments.length === 0) return;
 
     this.ctx.save();
+    this.ctx.lineWidth = 1.5; // Thinner lines for plate details
 
-    // Metallic armor plates around the snake
-    const plateCount = 8;
-    const plateSize = headSize * 0.4;
-    const plateDistance = headSize * 1.8;
+    const plateColor = '#6c757d'; // Main plate color (grey)
+    const highlightColor = '#adb5bd'; // Lighter grey for highlights
+    const shadowColor = '#495057'; // Darker grey for shadows/depth
 
-    for (let i = 0; i < plateCount; i++) {
-      const angle = (i / plateCount) * Math.PI * 2 + time * 0.5;
-      const plateX = headX + Math.cos(angle) * plateDistance;
-      const plateY = headY + Math.sin(angle) * plateDistance;
+    // Iterate over segments, skipping the head if we only want body armor.
+    // Or, start from 0 to include a head piece. For now, let's armor the whole body.
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      const segX = segment.x;
+      const segY = segment.y;
+      // Use individual segment size if available, otherwise scale based on headSize
+      const segmentSize = segment.size || baseHeadSize; 
+      
+      // Determine angle for orientation (if not the head, angle towards next segment or use snake's overall angle)
+      let angle = snake.angle || 0;
+      if (i < segments.length - 1) {
+        angle = Math.atan2(segments[i+1].y - segY, segments[i+1].x - segX);
+      } else if (i > 0) {
+        angle = Math.atan2(segY - segments[i-1].y, segX - segments[i-1].x);
+      }
 
       this.ctx.save();
-      this.ctx.translate(plateX, plateY);
-      this.ctx.rotate(angle + Math.PI / 2);
+      this.ctx.translate(segX, segY);
+      this.ctx.rotate(angle); // Orient plates with segment
 
-      // Armor plate gradient
-      const plateGradient = this.ctx.createLinearGradient(-plateSize, -plateSize, plateSize, plateSize);
-      plateGradient.addColorStop(0, '#CCCCCC');
-      plateGradient.addColorStop(0.5, '#888888');
-      plateGradient.addColorStop(1, '#444444');
+      const plateWidth = segmentSize * 1.1;
+      const plateHeight = segmentSize * 0.9;
 
-      this.ctx.fillStyle = plateGradient;
-      this.ctx.strokeStyle = '#FFFFFF';
-      this.ctx.lineWidth = 2;
+      // Main plate body
+      this.ctx.fillStyle = plateColor;
+      this.ctx.beginPath();
+      this.ctx.rect(-plateWidth / 2, -plateHeight / 2, plateWidth, plateHeight);
+      this.ctx.fill();
+      this.ctx.strokeStyle = shadowColor;
+      this.ctx.stroke();
+      
+      // Simple highlight effect
+      this.ctx.strokeStyle = highlightColor;
+      this.ctx.beginPath();
+      this.ctx.moveTo(-plateWidth / 2, -plateHeight / 2);
+      this.ctx.lineTo(plateWidth / 2, -plateHeight / 2);
+      this.ctx.lineTo(plateWidth / 2, plateHeight / 2);
+      this.ctx.stroke();
 
-      // Draw armor plate
-      this.ctx.fillRect(-plateSize / 2, -plateSize / 2, plateSize, plateSize);
-      this.ctx.strokeRect(-plateSize / 2, -plateSize / 2, plateSize, plateSize);
-
+      // Optional: add rivets or panel lines for more detail
+      const rivetSize = plateWidth * 0.1;
+      this.ctx.fillStyle = shadowColor;
+      this.ctx.beginPath();
+      this.ctx.arc(-plateWidth/2 + rivetSize, -plateHeight/2 + rivetSize, rivetSize/2, 0, Math.PI*2);
+      this.ctx.arc(plateWidth/2 - rivetSize, -plateHeight/2 + rivetSize, rivetSize/2, 0, Math.PI*2);
+      this.ctx.arc(-plateWidth/2 + rivetSize, plateHeight/2 - rivetSize, rivetSize/2, 0, Math.PI*2);
+      this.ctx.arc(plateWidth/2 - rivetSize, plateHeight/2 - rivetSize, rivetSize/2, 0, Math.PI*2);
+      this.ctx.fill();
+      
       this.ctx.restore();
     }
 
@@ -2077,128 +2416,147 @@ class ClientGame {
   }
 
   drawShieldGeneratorEffect(snake, headX, headY, headSize) {
-    const time = Date.now() * 0.001;
-    const shieldRadius = headSize * 3;
+    if (!snake) return;
+    const time = Date.now() * 0.002; // Slightly faster pulse for shield
 
     this.ctx.save();
 
-    // Powerful energy dome
-    const pulseIntensity = 0.7 + Math.sin(time * 4) * 0.3;
+    const shieldColor = 'rgba(0, 170, 255, 0.3)'; // Main shield color from POWERUP_CONFIGS (00AAFF with alpha)
+    const coreColor = 'rgba(0, 204, 255, 0.7)';   // Glow color from POWERUP_CONFIGS (00CCFF with alpha)
+    const pulseMaxRadius = headSize * 2.5;
+    const pulseMinRadius = headSize * 2.0;
 
-    // Outer energy dome
-    const domeGradient = this.ctx.createRadialGradient(headX, headY, 0, headX, headY, shieldRadius);
-    domeGradient.addColorStop(0, 'transparent');
-    domeGradient.addColorStop(0.8, `rgba(255, 255, 0, ${0.1 * pulseIntensity})`);
-    domeGradient.addColorStop(0.95, `rgba(255, 255, 0, ${0.3 * pulseIntensity})`);
-    domeGradient.addColorStop(1, 'transparent');
+    // Pulsating effect for the shield radius
+    const pulse = (Math.sin(time * 3) + 1) / 2; //Normalized pulse (0 to 1)
+    const currentRadius = pulseMinRadius + pulse * (pulseMaxRadius - pulseMinRadius);
+    const currentAlpha = 0.2 + pulse * 0.3; // Alpha pulsates as well (0.2 to 0.5)
 
-    this.ctx.fillStyle = domeGradient;
+    // Outer pulsating shield layer
     this.ctx.beginPath();
-    this.ctx.arc(headX, headY, shieldRadius, 0, Math.PI * 2);
+    this.ctx.arc(headX, headY, currentRadius, 0, Math.PI * 2);
+    const gradient = this.ctx.createRadialGradient(headX, headY, headSize * 0.5, headX, headY, currentRadius);
+    gradient.addColorStop(0, `rgba(0, 204, 255, ${currentAlpha * 0.5})`); // Inner part more intense
+    gradient.addColorStop(0.7, `rgba(0, 170, 255, ${currentAlpha})`);
+    gradient.addColorStop(1, `rgba(0, 120, 200, ${currentAlpha * 0.3})`); // Softer edge
+    this.ctx.fillStyle = gradient;
     this.ctx.fill();
 
-    // Generator core at center
-    const coreGlow = this.ctx.createRadialGradient(headX, headY, 0, headX, headY, headSize * 0.5);
-    coreGlow.addColorStop(0, '#FFFF00');
-    coreGlow.addColorStop(0.5, '#FFAA00');
-    coreGlow.addColorStop(1, 'transparent');
-
-    this.ctx.fillStyle = coreGlow;
+    // Inner core static glow (smaller, more intense)
     this.ctx.beginPath();
-    this.ctx.arc(headX, headY, headSize * 0.5, 0, Math.PI * 2);
+    this.ctx.arc(headX, headY, headSize * 0.8, 0, Math.PI * 2);
+    const coreGradient = this.ctx.createRadialGradient(headX, headY, headSize * 0.1, headX, headY, headSize * 0.8);
+    coreGradient.addColorStop(0, coreColor); 
+    coreGradient.addColorStop(1, 'transparent');
+    this.ctx.fillStyle = coreGradient;
     this.ctx.fill();
+
+    // Optional: Add some subtle energy particles or lines around the shield
+    const numParticles = 5;
+    for (let i = 0; i < numParticles; i++) {
+      const angle = (time * 0.5) + (i * (Math.PI * 2 / numParticles));
+      const particleRadius = currentRadius * (0.8 + Math.random() * 0.2); // Particles on or near shield edge
+      const pX = headX + Math.cos(angle) * particleRadius;
+      const pY = headY + Math.sin(angle) * particleRadius;
+      const pSize = headSize * 0.1 * (1 + pulse); // Particle size pulsates
+
+      this.ctx.beginPath();
+      this.ctx.arc(pX, pY, pSize, 0, Math.PI * 2);
+      this.ctx.fillStyle = `rgba(200, 240, 255, ${0.5 * (1-pulse)})`; // Faint, counter-pulsing particles
+      this.ctx.fill();
+    }
 
     this.ctx.restore();
   }
 
-  drawBatteringRamEffect(snake, headX, headY, headSize) {
-    const time = Date.now() * 0.001;
-    const angle = snake.angle || 0;
-    const isBoosting = snake.boost || false;
+  drawBatteringRamEffect(snake, headX, headY, headSize, isBoosting) {
+    if (!snake) return;
+    const time = Date.now() * 0.003;
 
     this.ctx.save();
+    const angle = snake.angle || 0;
 
-    // Enhanced meteor effect when boosting
+    // Main fiery color for the ram
+    const ramColor = '#FF6600';      // POWERUP_CONFIGS.battering_ram.color
+    const glowColor = '#FFAA00';     // POWERUP_CONFIGS.battering_ram.glowColor
+    const secondaryColor = '#FF8800'; // POWERUP_CONFIGS.battering_ram.secondaryColor
+
     if (isBoosting) {
-      // Large meteor head with fiery core
-      const meteorSize = headSize * 1.8;
-      const coreGradient = this.ctx.createRadialGradient(headX, headY, 0, headX, headY, meteorSize);
-      coreGradient.addColorStop(0, '#FFFFFF');
-      coreGradient.addColorStop(0.3, '#FFFF00');
-      coreGradient.addColorStop(0.6, '#FF6600');
-      coreGradient.addColorStop(0.8, '#FF3300');
-      coreGradient.addColorStop(1, '#AA1100');
+      // Intense "Meteor Design" when boosting
+      const meteorSize = headSize * 2.5; // Large, impactful meteor head
+      const meteorPulse = (Math.sin(time * 10) + 1) / 2; // Fast pulse
 
+      // Fiery core gradient
+      const coreGradient = this.ctx.createRadialGradient(headX, headY, headSize * 0.5, headX, headY, meteorSize * (0.8 + meteorPulse * 0.2));
+      coreGradient.addColorStop(0, 'white');
+      coreGradient.addColorStop(0.3, glowColor);
+      coreGradient.addColorStop(0.6, ramColor);
+      coreGradient.addColorStop(1, 'transparent');
       this.ctx.fillStyle = coreGradient;
       this.ctx.beginPath();
-      this.ctx.arc(headX, headY, meteorSize, 0, Math.PI * 2);
+      this.ctx.arc(headX, headY, meteorSize * (0.8 + meteorPulse * 0.2), 0, Math.PI * 2);
       this.ctx.fill();
 
-      // Intense comet trail when boosting
-      const trailLength = headSize * 8;
-      const numTrailPoints = 15;
+      // Shockwave lines / energy streaks
+      const numStreaks = 8;
+      for (let i = 0; i < numStreaks; i++) {
+        const streakAngle = angle + (i / numStreaks) * Math.PI * 2 + time * 2; // Rotating streaks
+        const streakStartRadius = headSize * 1.2;
+        const streakEndRadius = meteorSize * (1.0 + meteorPulse * 0.3);
+        const streakOpacity = 0.5 + meteorPulse * 0.5;
 
-      for (let i = 0; i < numTrailPoints; i++) {
-        const progress = i / numTrailPoints;
-        const trailDistance = trailLength * progress;
-        const trailX = headX - Math.cos(angle) * trailDistance;
-        const trailY = headY - Math.sin(angle) * trailDistance;
-        const trailSize = headSize * (2 - progress * 1.5);
-        const alpha = 0.9 - progress * 0.7;
-
-        // Fiery trail colors
-        const colors = [
-          `rgba(255, 255, 255, ${alpha})`,
-          `rgba(255, 255, 0, ${alpha * 0.8})`,
-          `rgba(255, 102, 0, ${alpha * 0.6})`,
-          `rgba(255, 51, 0, ${alpha * 0.4})`,
-          `rgba(170, 17, 0, ${alpha * 0.2})`
-        ];
-
-        const colorIndex = Math.floor(progress * colors.length);
-        this.ctx.fillStyle = colors[Math.min(colorIndex, colors.length - 1)];
         this.ctx.beginPath();
-        this.ctx.arc(trailX, trailY, trailSize, 0, Math.PI * 2);
+        this.ctx.moveTo(
+          headX + Math.cos(streakAngle) * streakStartRadius,
+          headY + Math.sin(streakAngle) * streakStartRadius
+        );
+        this.ctx.lineTo(
+          headX + Math.cos(streakAngle + 0.1) * streakEndRadius, // Slightly skewed for dynamic look
+          headY + Math.sin(streakAngle + 0.1) * streakEndRadius
+        );
+        this.ctx.lineTo(
+          headX + Math.cos(streakAngle - 0.1) * streakEndRadius,
+          headY + Math.sin(streakAngle - 0.1) * streakEndRadius
+        );
+        this.ctx.closePath();
+
+        this.ctx.fillStyle = `rgba(255, 204, 0, ${streakOpacity * 0.7})`; // #FFCC00 - secondary/glow mix
         this.ctx.fill();
       }
 
-      // Sparks and debris
-      for (let i = 0; i < 8; i++) {
-        const sparkAngle = angle + Math.PI + (Math.random() - 0.5) * 1.5;
-        const sparkDistance = 30 + Math.random() * 50;
-        const sparkX = headX + Math.cos(sparkAngle) * sparkDistance;
-        const sparkY = headY + Math.sin(sparkAngle) * sparkDistance;
-        const sparkSize = 2 + Math.random() * 4;
-
-        this.ctx.fillStyle = `rgba(255, ${100 + Math.random() * 155}, 0, ${0.6 + Math.random() * 0.4})`;
+      // Particle trail behind the meteor head
+      const numParticles = 15;
+      for (let i = 0; i < numParticles; i++) {
+        const pAngle = angle + Math.PI + (Math.random() - 0.5) * 0.8; // Trail behind
+        const pDistance = headSize + Math.random() * meteorSize * 2;
+        const pX = headX + Math.cos(pAngle) * pDistance * (0.5 + meteorPulse * 0.5);
+        const pY = headY + Math.sin(pAngle) * pDistance * (0.5 + meteorPulse * 0.5);
+        const pSize = headSize * 0.1 + Math.random() * headSize * 0.3 * meteorPulse;
+        
+        this.ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,102,0,${0.4 + meteorPulse*0.4})` : `rgba(255,170,0,${0.5 + meteorPulse*0.5})`;
         this.ctx.beginPath();
-        this.ctx.arc(sparkX, sparkY, sparkSize, 0, Math.PI * 2);
+        this.ctx.arc(pX, pY, pSize, 0, Math.PI * 2);
         this.ctx.fill();
       }
+
     } else {
-      // Normal battering ram effect (smaller)
-      const cometLength = headSize * 3;
-      const trailPoints = [];
-      const numTrailPoints = 8;
+      // Dormant effect: Subtle pulsing aura or a smaller, less intense ram shape
+      const dormantSize = headSize * 1.2;
+      const dormantPulse = (Math.sin(time * 2) + 1) / 2;
+      const dormantRadius = headSize * 0.8 + dormantPulse * headSize * 0.3;
 
-      for (let i = 0; i < numTrailPoints; i++) {
-        const progress = i / numTrailPoints;
-        const trailDistance = cometLength * progress;
-        const trailX = headX - Math.cos(angle) * trailDistance;
-        const trailY = headY - Math.sin(angle) * trailDistance;
-        const trailSize = headSize * (1 - progress * 0.8);
+      const dormantGradient = this.ctx.createRadialGradient(headX, headY, 0, headX, headY, dormantRadius);
+      dormantGradient.addColorStop(0, `rgba(255, 136, 0, ${0.3 + dormantPulse * 0.3})`); // secondaryColor
+      dormantGradient.addColorStop(1, `rgba(255, 102, 0, ${0.1 + dormantPulse * 0.2})`);  // ramColor
+      this.ctx.fillStyle = dormantGradient;
 
-        trailPoints.push({ x: trailX, y: trailY, size: trailSize, progress });
-      }
-
-      // Draw normal trail effect
-      trailPoints.forEach((point) => {
-        const alpha = 0.6 - point.progress * 0.4;
-        this.ctx.fillStyle = `rgba(255, 102, 0, ${alpha})`;
-        this.ctx.beginPath();
-        this.ctx.arc(point.x, point.y, point.size, 0, Math.PI * 2);
-        this.ctx.fill();
-      });
+      this.ctx.beginPath();
+      // Draw a slightly more defined shape, like a blunted arrowhead
+      this.ctx.moveTo(headX + Math.cos(angle) * dormantRadius, headY + Math.sin(angle) * dormantRadius);
+      this.ctx.lineTo(headX + Math.cos(angle - Math.PI/2) * headSize * 0.5, headY + Math.sin(angle - Math.PI/2) * headSize * 0.5);
+      this.ctx.lineTo(headX + Math.cos(angle + Math.PI) * headSize * 0.3, headY + Math.sin(angle + Math.PI) * headSize * 0.3); // blunted back
+      this.ctx.lineTo(headX + Math.cos(angle + Math.PI/2) * headSize * 0.5, headY + Math.sin(angle + Math.PI/2) * headSize * 0.5);
+      this.ctx.closePath();
+      this.ctx.fill();
     }
 
     this.ctx.restore();
@@ -2299,68 +2657,135 @@ class ClientGame {
     this.ctx.restore();
   }
 
-  drawSpeedBoostEffect(snake, headX, headY, headSize) {
-    const time = Date.now() * 0.001;
+  drawSpeedBoostEffect(snake, segments, headSize, isBoosting) {
+    if (!snake || !segments || segments.length === 0) return;
+    const time = Date.now() * 0.005; // Faster time factor for speed effects
 
     this.ctx.save();
 
-    // Speed lines behind the snake
-    const angle = snake.angle || 0;
-    const lineCount = 8;
-    const lineLength = headSize * 4;
+    const boostColor = 'rgba(255, 170, 0, 0.7)'; // Main color from POWERUP_CONFIGS (#FFAA00)
+    const trailColor = 'rgba(255, 221, 0, 0.5)'; // Glow color for trails (#FFDD00)
 
-    for (let i = 0; i < lineCount; i++) {
-      const lineAngle = angle + Math.PI + (Math.random() - 0.5) * 0.5;
-      const lineDistance = (i + 1) * 20;
-      const lineX = headX - Math.cos(lineAngle) * lineDistance;
-      const lineY = headY - Math.sin(lineAngle) * lineDistance;
+    // Draw motion lines or a sleek aura, especially when boosting
+    // Let's try a shimmering aura along the body and more pronounced head effect
 
-      const alpha = 0.8 - (i / lineCount) * 0.6;
-      this.ctx.strokeStyle = `rgba(0, 255, 0, ${alpha})`;
-      this.ctx.lineWidth = 3 - (i / lineCount) * 2;
-      this.ctx.setLineDash([5, 5]);
-      this.ctx.lineDashOffset = time * 20;
+    // Head aura/flames - more intense if boosting
+    const headX = segments[0].x;
+    const headY = segments[0].y;
+    const baseAuraSize = headSize * (isBoosting ? 1.5 : 1.2);
+    const auraPulse = (Math.sin(time * (isBoosting ? 10 : 5)) + 1) / 2; // Faster pulse if boosting
+    const currentAuraSize = baseAuraSize * (0.8 + auraPulse * 0.4);
+    const headAngle = snake.angle || 0;
 
-      this.ctx.beginPath();
-      this.ctx.moveTo(lineX, lineY);
-      this.ctx.lineTo(lineX - Math.cos(lineAngle) * lineLength, lineY - Math.sin(lineAngle) * lineLength);
-      this.ctx.stroke();
+    this.ctx.beginPath();
+    this.ctx.moveTo(
+      headX + Math.cos(headAngle - Math.PI / 2) * headSize * 0.5, 
+      headY + Math.sin(headAngle - Math.PI / 2) * headSize * 0.5
+    );
+    // Flame-like points
+    for (let i = 0; i < 3; i++) {
+      const flareAngle = headAngle + (i -1) * (isBoosting ? 0.5 : 0.3); // Wider flare if boosting
+      const flareLength = currentAuraSize * (1 + Math.random() * 0.3);
+      this.ctx.lineTo(
+        headX + Math.cos(flareAngle) * flareLength, 
+        headY + Math.sin(flareAngle) * flareLength
+      );
     }
+    this.ctx.lineTo(
+      headX + Math.cos(headAngle + Math.PI / 2) * headSize * 0.5, 
+      headY + Math.sin(headAngle + Math.PI / 2) * headSize * 0.5
+    );
+    this.ctx.closePath();
 
-    this.ctx.setLineDash([]);
+    const headGradient = this.ctx.createRadialGradient(headX, headY, headSize * 0.2, headX, headY, currentAuraSize);
+    headGradient.addColorStop(0, `rgba(255, 221, 0, ${0.8 + auraPulse * 0.2})`);
+    headGradient.addColorStop(0.5, `rgba(255, 170, 0, ${0.5 + auraPulse * 0.3})`);
+    headGradient.addColorStop(1, 'transparent');
+    this.ctx.fillStyle = headGradient;
+    this.ctx.fill();
+
+    // Subtle body trail/shimmer
+    if (segments.length > 1) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(segments[0].x, segments[0].y);
+      for (let i = 1; i < segments.length; i++) {
+        const seg = segments[i];
+        const prevSeg = segments[i-1];
+        const controlX = (prevSeg.x + seg.x) / 2;
+        const controlY = (prevSeg.y + seg.y) / 2;
+        this.ctx.quadraticCurveTo(prevSeg.x, prevSeg.y, controlX, controlY);
+      }
+      this.ctx.lineWidth = headSize * 0.3 * (0.5 + auraPulse); // Pulsating width
+      this.ctx.strokeStyle = trailColor;
+      this.ctx.globalAlpha = 0.3 + auraPulse * 0.3; // Pulsating alpha
+      this.ctx.stroke();
+      this.ctx.globalAlpha = 1.0;
+    }
+    
     this.ctx.restore();
   }
 
-  drawDamageAmplifierEffect(snake, headX, headY, headSize) {
-    const time = Date.now() * 0.001;
+  drawDamageAmplifierEffect(snake, segments, headSize) {
+    if (!snake || !segments || segments.length === 0) return;
+    const time = Date.now() * 0.003;
 
     this.ctx.save();
 
-    // Pulsing red energy around the head
-    const pulseSize = headSize * (1.5 + Math.sin(time * 6) * 0.3);
-    const pulseAlpha = 0.4 + Math.sin(time * 6) * 0.2;
+    const mainColor = 'rgba(255, 68, 68, 0.7)';     // #FF4444 with alpha
+    const secondaryColor = 'rgba(255, 102, 102, 0.5)'; // #FF6666 with alpha
+    const glowColor = 'rgba(255, 136, 136, 0.9)';    // #FF8888 with alpha
 
-    // Outer energy ring
-    const outerGradient = this.ctx.createRadialGradient(headX, headY, 0, headX, headY, pulseSize);
-    outerGradient.addColorStop(0, 'transparent');
-    outerGradient.addColorStop(0.7, `rgba(255, 0, 0, ${pulseAlpha * 0.3})`);
-    outerGradient.addColorStop(1, 'transparent');
+    const headX = segments[0].x;
+    const headY = segments[0].y;
 
-    this.ctx.fillStyle = outerGradient;
-    this.ctx.beginPath();
-    this.ctx.arc(headX, headY, pulseSize, 0, Math.PI * 2);
-    this.ctx.fill();
+    // Pulsating core glow around the head
+    const pulse = (Math.sin(time * 5) + 1) / 2; // Normalized pulse (0 to 1)
+    const coreRadius = headSize * (1.0 + pulse * 0.4); // Core pulsates from 1.0 to 1.4 times headSize
+    const coreAlpha = 0.5 + pulse * 0.4; // Alpha also pulsates
 
-    // Inner energy core
-    const coreGradient = this.ctx.createRadialGradient(headX, headY, 0, headX, headY, headSize * 0.8);
-    coreGradient.addColorStop(0, `rgba(255, 100, 100, ${pulseAlpha})`);
+    const coreGradient = this.ctx.createRadialGradient(headX, headY, headSize * 0.2, headX, headY, coreRadius);
+    coreGradient.addColorStop(0, `rgba(255, 136, 136, ${coreAlpha})`); // Brighter center (glowColor)
+    coreGradient.addColorStop(0.7, `rgba(255, 68, 68, ${coreAlpha * 0.7})`); // Main color
     coreGradient.addColorStop(1, 'transparent');
-
     this.ctx.fillStyle = coreGradient;
     this.ctx.beginPath();
-    this.ctx.arc(headX, headY, headSize * 0.8, 0, Math.PI * 2);
+    this.ctx.arc(headX, headY, coreRadius, 0, Math.PI * 2);
     this.ctx.fill();
 
+    // Jagged, crackling energy aura along the body
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      const segSize = segment.size || headSize;
+      const numSpikes = 5;
+      const spikeLengthBase = segSize * 0.3;
+      const spikeLengthVariation = segSize * 0.2;
+
+      for (let j = 0; j < numSpikes; j++) {
+        const angleOffset = (j / numSpikes) * Math.PI * 2 + time * (i % 2 === 0 ? 2 : -2); // Alternating rotation
+        const currentSpikeLength = spikeLengthBase + Math.random() * spikeLengthVariation * pulse;
+        
+        const startRadius = segSize * 0.5;
+        const sx = segment.x + Math.cos(angleOffset) * startRadius;
+        const sy = segment.y + Math.sin(angleOffset) * startRadius;
+        const ex = segment.x + Math.cos(angleOffset) * (startRadius + currentSpikeLength);
+        const ey = segment.y + Math.sin(angleOffset) * (startRadius + currentSpikeLength);
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(sx, sy);
+        this.ctx.lineTo(ex, ey);
+        
+        this.ctx.lineWidth = (1 + Math.random() * 2) * (0.5 + pulse); // Pulsating width
+        if (j % 2 === 0) {
+          this.ctx.strokeStyle = `rgba(255, 102, 102, ${0.3 + pulse * 0.4})`; // secondaryColor
+        } else {
+          this.ctx.strokeStyle = `rgba(255, 68, 68, ${0.4 + pulse * 0.5})`;   // mainColor
+        }
+        this.ctx.stroke();
+      }
+    }
     this.ctx.restore();
   }
 
@@ -2382,43 +2807,7 @@ class ClientGame {
     return color; // Return original if not hex
   }
 
-  drawCrown(snake, headX, headY, headSize) {
-    const crownSize = headSize * 0.8;
-    const crownY = headY - headSize * 1.5; // Position above head
-
-    this.ctx.save();
-
-    // Crown base (golden band)
-    const crownGradient = this.ctx.createLinearGradient(
-      headX - crownSize, crownY - crownSize * 0.2,
-      headX + crownSize, crownY + crownSize * 0.2
-    );
-    crownGradient.addColorStop(0, '#FFD700'); // Gold
-    crownGradient.addColorStop(0.5, '#FFF700'); // Bright gold
-    crownGradient.addColorStop(1, '#FFD700'); // Gold
-
-    this.ctx.fillStyle = crownGradient;
-    this.ctx.fillRect(headX - crownSize, crownY, crownSize * 2, crownSize * 0.4);
-
-    // Crown spikes
-    this.ctx.beginPath();
-    const spikeCount = 5;
-    const spikeWidth = (crownSize * 2) / spikeCount;
-
-    for (let i = 0; i < spikeCount; i++) {
-      const spikeX = headX - crownSize + (i * spikeWidth);
-      const spikeHeight = i === 2 ? crownSize * 0.8 : crownSize * 0.6; // Middle spike taller
-
-      // Draw spike triangle
-      this.ctx.moveTo(spikeX, crownY);
-      this.ctx.lineTo(spikeX + spikeWidth / 2, crownY - spikeHeight);
-      this.ctx.lineTo(spikeX + spikeWidth, crownY);
-    }
-    this.ctx.closePath();
-    this.ctx.fill();
-
-    this.ctx.restore();
-  }
+  // Old drawCrown function removed - crown now drawn above player info tag
 
   drawWeapons() {
     if (!this.gameState.weapons) return;
@@ -2829,6 +3218,18 @@ class ClientGame {
   drawProjectiles() {
     if (!this.gameState.projectiles) return;
 
+    if (this.gameState.projectiles.length > 0) {
+      // Log only if there are projectiles and we haven't logged for this batch yet
+      // This avoids spamming if drawProjectiles is called multiple times rapidly for the same state
+      if (this.lastLoggedProjectiles !== this.gameState.projectiles) {
+          console.log(`Client RENDER: Processing ${this.gameState.projectiles.length} projectiles from gameState.`);
+          this.lastLoggedProjectiles = this.gameState.projectiles;
+          // It might be better to compare based on a timestamp or unique ID from gameState if available,
+          // as the array reference itself might change even if content is similar.
+          // For now, this is a simple approach.
+      }
+    }
+
     this.gameState.projectiles.forEach(projectile => {
       this.drawProjectile(projectile);
     });
@@ -2903,26 +3304,31 @@ class ClientGame {
   drawProjectile(projectile) {
     // Validate projectile properties
     if (!projectile || typeof projectile.x !== 'number' || typeof projectile.y !== 'number') {
-      console.warn('Invalid projectile object:', projectile);
+      console.warn('Client RENDER: Invalid projectile object:', projectile);
       return;
     }
     if (!isFinite(projectile.x) || !isFinite(projectile.y)) {
-      console.warn('Invalid projectile coordinates:', projectile.x, projectile.y);
+      console.warn('Client RENDER: Invalid projectile coordinates:', projectile.x, projectile.y);
       return;
     }
 
     const x = projectile.x - this.camera.x;
     const y = projectile.y - this.camera.y;
 
+    // Log before culling
+    console.log(`Client RENDER: Proj ${projectile.id} (${projectile.type}) at screen (${Math.round(x)}, ${Math.round(y)}), world (${Math.round(projectile.x)}, ${Math.round(projectile.y)}), cam (${Math.round(this.camera.x)}, ${Math.round(this.camera.y)}), canvas (${this.canvas.width}x${this.canvas.height})`);
+
+
     // Validate screen coordinates
     if (!isFinite(x) || !isFinite(y)) {
-      console.warn('Invalid projectile screen coordinates:', x, y);
+      console.warn('Client RENDER: Invalid projectile screen coordinates:', x, y);
       return;
     }
 
     // Don't draw if off screen
     if (x < -100 || x > this.canvas.width + 100 ||
         y < -100 || y > this.canvas.height + 100) {
+      console.log(`Client RENDER: Proj ${projectile.id} (${projectile.type}) CULLED at screen (${Math.round(x)}, ${Math.round(y)})`);
       return;
     }
 
@@ -3256,6 +3662,12 @@ class ClientGame {
   drawCoins() {
     if (!this.gameState.coins) return;
 
+    // Load currency icon if not already loaded
+    if (!this.currencyIcon) {
+      this.currencyIcon = new Image();
+      this.currencyIcon.src = '/assets/SnakePit Currency Icon.png';
+    }
+
     const time = Date.now() * 0.001;
 
     this.gameState.coins.forEach(coin => {
@@ -3277,35 +3689,53 @@ class ClientGame {
         // Validate final coordinates before creating gradient
         if (!isFinite(finalY) || !isFinite(coinSize)) return;
 
-        // Coin glow
-        const glowGradient = this.ctx.createRadialGradient(x, finalY, 0, x, finalY, coinSize * 2);
-        glowGradient.addColorStop(0, '#FFD700');
-        glowGradient.addColorStop(0.5, '#FFA500');
+        // Enhanced pure golden glow effect
+        const glowSize = coinSize * 2.5;
+        const glowGradient = this.ctx.createRadialGradient(x, finalY, 0, x, finalY, glowSize);
+        glowGradient.addColorStop(0, 'rgba(255, 215, 0, 0.8)');
+        glowGradient.addColorStop(0.3, 'rgba(255, 215, 0, 0.6)');
+        glowGradient.addColorStop(0.6, 'rgba(255, 215, 0, 0.3)');
         glowGradient.addColorStop(1, 'transparent');
 
         this.ctx.fillStyle = glowGradient;
         this.ctx.beginPath();
-        this.ctx.arc(x, finalY, coinSize * 2, 0, Math.PI * 2);
+        this.ctx.arc(x, finalY, glowSize, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Main coin
-        this.ctx.fillStyle = '#FFD700';
-        this.ctx.beginPath();
-        this.ctx.arc(x, finalY, coinSize, 0, Math.PI * 2);
-        this.ctx.fill();
+        // Draw currency icon if loaded
+        if (this.currencyIcon && this.currencyIcon.complete) {
+          const iconSize = coinSize * 3; // Make icon much larger for better visibility
 
-        // Coin center
-        this.ctx.fillStyle = '#FFA500';
-        this.ctx.beginPath();
-        this.ctx.arc(x, finalY, coinSize * 0.6, 0, Math.PI * 2);
-        this.ctx.fill();
+          // Add golden tint to the icon
+          this.ctx.save();
+          this.ctx.globalCompositeOperation = 'multiply';
+          this.ctx.fillStyle = '#FFD700';
+          this.ctx.fillRect(x - iconSize/2, finalY - iconSize/2, iconSize, iconSize);
+          this.ctx.globalCompositeOperation = 'source-over';
 
-        // Dollar sign
-        this.ctx.fillStyle = '#000000';
-        this.ctx.font = `${coinSize}px Arial`;
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText('$', x, finalY);
+          // Draw the currency icon
+          this.ctx.drawImage(
+            this.currencyIcon,
+            x - iconSize/2,
+            finalY - iconSize/2,
+            iconSize,
+            iconSize
+          );
+          this.ctx.restore();
+        } else {
+          // Fallback to original coin drawing if image not loaded
+          this.ctx.fillStyle = '#FFD700';
+          this.ctx.beginPath();
+          this.ctx.arc(x, finalY, coinSize, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Dollar sign
+          this.ctx.fillStyle = '#000000';
+          this.ctx.font = `${coinSize}px Arial`;
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.fillText('$', x, finalY);
+        }
 
         // Draw sparkles around coin
         for (let i = 0; i < 4; i++) {
@@ -3409,54 +3839,32 @@ class ClientGame {
   drawKingCrownIcon(indicatorX, indicatorY, angle, distance) {
     this.ctx.save();
 
-    // Position crown icon offset from arrow
-    const crownOffset = 35;
-    const crownX = indicatorX + Math.cos(angle + Math.PI / 2) * crownOffset;
-    const crownY = indicatorY + Math.sin(angle + Math.PI / 2) * crownOffset;
+    const crownDisplaySize = 20; // Size of the crown image to display
+    const offsetAmount = 30; // How far to offset the crown from the arrow point, perpendicularly
 
-    // Draw crown icon using SVG-style path
-    const crownSize = 14;
-    this.ctx.translate(crownX, crownY);
+    // Calculate a position for the crown icon that is perpendicular to the arrow's direction
+    // and offset from the arrow's tip (indicatorX, indicatorY).
+    const crownCenterX = indicatorX + Math.cos(angle - Math.PI / 2) * offsetAmount;
+    const crownCenterY = indicatorY + Math.sin(angle - Math.PI / 2) * offsetAmount;
 
-    // Crown base
-    this.ctx.fillStyle = '#FFD700';
-    this.ctx.fillRect(-crownSize, -crownSize * 0.3, crownSize * 2, crownSize * 0.6);
+    // Use the main drawCrownIcon which handles loading, drawing, and fallback
+    this.drawCrownIcon(crownCenterX, crownCenterY, crownDisplaySize);
 
-    // Crown spikes
-    this.ctx.beginPath();
-    const spikes = [
-      { x: -crownSize * 0.8, height: crownSize * 0.6 },
-      { x: -crownSize * 0.4, height: crownSize * 0.8 },
-      { x: 0, height: crownSize },
-      { x: crownSize * 0.4, height: crownSize * 0.8 },
-      { x: crownSize * 0.8, height: crownSize * 0.6 }
-    ];
-
-    spikes.forEach(spike => {
-      this.ctx.moveTo(spike.x - crownSize * 0.15, -crownSize * 0.3);
-      this.ctx.lineTo(spike.x, -crownSize * 0.3 - spike.height);
-      this.ctx.lineTo(spike.x + crownSize * 0.15, -crownSize * 0.3);
-    });
-    this.ctx.closePath();
-    this.ctx.fill();
-
-    // Crown gems
-    this.ctx.fillStyle = '#FF4444';
-    [-crownSize * 0.5, 0, crownSize * 0.5].forEach(x => {
-      this.ctx.beginPath();
-      this.ctx.arc(x, -crownSize * 0.1, crownSize * 0.08, 0, Math.PI * 2);
-      this.ctx.fill();
-    });
-
-    // Distance text
+    // Distance text - positioned relative to the crown icon
     this.ctx.fillStyle = '#FFFFFF';
     this.ctx.strokeStyle = '#000000';
     this.ctx.lineWidth = 3;
     this.ctx.font = 'bold 11px monospace';
     this.ctx.textAlign = 'center';
     const distanceText = `${Math.floor(distance)}m`;
-    this.ctx.strokeText(distanceText, 0, crownSize + 18);
-    this.ctx.fillText(distanceText, 0, crownSize + 18);
+
+    // Position text below the crown icon
+    // The crown's center is (crownCenterX, crownCenterY)
+    // The crown's approximate height is crownDisplaySize
+    const textY = crownCenterY + (crownDisplaySize / 2) + 12; // 12px padding below the crown
+
+    this.ctx.strokeText(distanceText, crownCenterX, textY);
+    this.ctx.fillText(distanceText, crownCenterX, textY);
 
     this.ctx.restore();
   }
@@ -3474,28 +3882,8 @@ class ClientGame {
   }
 
   drawDebugInfo() {
-    // FPS and connection status
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.font = '12px monospace';
-    this.ctx.textAlign = 'left';
-    this.ctx.fillText(`FPS: ${this.fps}`, 10, 20);
-
-    if (this.connected) {
-      this.ctx.fillText('🟢 Connected', 10, 40);
-    } else {
-      this.ctx.fillText('🔴 Disconnected', 10, 40);
-    }
-
-    // Player count
-    const playerCount = this.gameState.players ? this.gameState.players.length : 0;
-    this.ctx.fillText(`Players: ${playerCount}`, 10, 60);
-
-    // Zoom debug info
-    if (this.localPlayer) {
-      this.ctx.fillText(`Zoom: ${(this.camera.zoom * 100).toFixed(0)}%`, 10, 80);
-      this.ctx.fillText(`Size: ${this.localPlayer.size?.toFixed(1) || 'N/A'}`, 10, 100);
-      this.ctx.fillText(`Cash: $${this.localPlayer.cash || 0}`, 10, 120);
-    }
+    // Debug info disabled - metrics moved to status bar
+    return;
   }
 
   drawMinimap() {

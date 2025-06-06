@@ -1,3 +1,114 @@
+// Fallback weapon configurations, mirroring ServerGame.js
+const WEAPON_CONFIGS_FALLBACK = {
+  sidearm: {
+    name: 'Snake Fang',
+    tier: 0,
+    damage: 1,
+    maxAmmo: Infinity,
+    fireRate: 300,
+    projectileSpeed: 15, // Original: 12
+    accuracy: 90,
+    rarity: 'default',
+    color: '#888888',
+    ammoTypes: [],
+    description: 'Basic sidearm with unlimited ammo'
+  },
+  laser_pistol: {
+    name: 'Laser Pistol',
+    tier: 1,
+    damage: 2,
+    maxAmmo: 24,
+    fireRate: 400,
+    projectileSpeed: 22, // Original: 18
+    accuracy: 95,
+    rarity: 'common',
+    color: '#FF4444',
+    ammoTypes: ['light_energy'],
+    description: 'Fast-firing energy sidearm'
+  },
+  plasma_smg: {
+    name: 'Plasma SMG',
+    tier: 1,
+    damage: 1.5,
+    maxAmmo: 40,
+    fireRate: 150,
+    projectileSpeed: 19, // Original: 15
+    accuracy: 85,
+    rarity: 'common',
+    color: '#44FF44',
+    ammoTypes: ['plasma_cells'],
+    firingMode: 'full_auto',
+    description: 'High rate of fire plasma weapon'
+  },
+  laser_rifle: {
+    name: 'Laser Rifle',
+    tier: 2,
+    damage: 4,
+    maxAmmo: 20,
+    fireRate: 600,
+    projectileSpeed: 31, // Original: 25
+    accuracy: 98,
+    rarity: 'uncommon',
+    color: '#FF8844',
+    ammoTypes: ['heavy_energy'],
+    description: 'High-precision energy rifle'
+  },
+  plasma_cannon: {
+    name: 'Plasma Cannon',
+    tier: 2,
+    damage: 6,
+    maxAmmo: 12,
+    fireRate: 800,
+    projectileSpeed: 25, // Original: 20
+    accuracy: 90,
+    rarity: 'uncommon',
+    color: '#8844FF',
+    ammoTypes: ['heavy_plasma'],
+    description: 'Heavy plasma artillery'
+  },
+  rocket_launcher: {
+    name: 'Rocket Launcher',
+    tier: 3,
+    damage: 12,
+    maxAmmo: 6,
+    fireRate: 1200,
+    projectileSpeed: 22, // Original: 18
+    accuracy: 85,
+    rarity: 'rare',
+    color: '#FF4488',
+    ammoTypes: ['rockets'],
+    description: 'Explosive rocket weapon'
+  },
+  rail_gun: {
+    name: 'Rail Gun',
+    tier: 3,
+    damage: 15,
+    maxAmmo: 8,
+    fireRate: 1500,
+    projectileSpeed: 44, // Original: 35
+    accuracy: 100,
+    rarity: 'rare',
+    color: '#44FFFF',
+    ammoTypes: ['rail_slugs'],
+    description: 'Ultra-high velocity kinetic weapon'
+  },
+  minigun: {
+    name: 'Minigun',
+    tier: 4,
+    damage: 2,
+    maxAmmo: 200,
+    fireRate: 80,
+    projectileSpeed: 28, // Original: 22
+    accuracy: 75,
+    rarity: 'legendary',
+    color: '#FFFF44',
+    ammoTypes: ['heavy_energy'],
+    firingMode: 'full_auto',
+    tracerRounds: true,
+    description: 'Devastating rapid-fire weapon'
+  }
+};
+
 class ServerSnake {
   constructor(x, y, color, isPlayer = false, gameMode = 'classic', gameInstance = null) {
     this.x = x;
@@ -9,8 +120,8 @@ class ServerSnake {
     
     // Basic properties - EXACT ORIGINAL VALUES
     this.baseSize = 8;
-    this.speed = 4; // EXACT ORIGINAL speed - Increased from 2 to 4 for faster base movement
-    this.baseSpeed = 4; // EXACT ORIGINAL base speed - Store base speed for calculations
+    this.speed = 5; // EXACT ORIGINAL speed - Increased from 2 to 4 for faster base movement
+    this.baseSpeed = 5; // EXACT ORIGINAL base speed - Store base speed for calculations
     this.speedMultiplier = 1.0;
     this.angle = Math.random() * Math.PI * 2;
     this.targetAngle = this.angle;
@@ -128,6 +239,9 @@ class ServerSnake {
   update(boosting = false, targetX = null, targetY = null, deltaTime = 16.67) {
     if (!this.alive) return;
 
+    // Update active powerups (duration, effects)
+    this.updatePowerups(deltaTime);
+
     // Normalize delta time to 60 FPS (16.67ms per frame) for consistent movement
     const frameTimeMultiplier = deltaTime / 16.67;
 
@@ -173,14 +287,62 @@ class ServerSnake {
     this.x += Math.cos(this.angle) * currentSpeed * frameTimeMultiplier;
     this.y += Math.sin(this.angle) * currentSpeed * frameTimeMultiplier;
 
-    // Keep in world bounds - snake can move ALL THE WAY to world edges
+    // World boundary bounce mechanics to prevent corner camping
     const worldWidth = this.gameInstance ? this.gameInstance.worldWidth : 40000;
     const worldHeight = this.gameInstance ? this.gameInstance.worldHeight : 40000;
 
-    // Snake center can reach the exact world boundaries (0 to worldWidth/Height)
-    // When snake reaches edge, camera will show world boundary at screen edge
-    this.x = Math.max(0, Math.min(worldWidth, this.x));
-    this.y = Math.max(0, Math.min(worldHeight, this.y));
+    // Check for boundary collisions and apply bounce
+    let bounced = false;
+    const bounceForce = 0.8; // Bounce strength (0.8 = 80% velocity reflection)
+    const minBounceSpeed = 2; // Minimum speed after bounce
+
+    // Left boundary collision
+    if (this.x <= 0) {
+      this.x = 0;
+      // Reverse horizontal velocity component and apply bounce
+      const currentVelX = Math.cos(this.angle) * this.baseSpeed;
+      const newVelX = Math.abs(currentVelX) * bounceForce;
+      const newVelY = Math.sin(this.angle) * this.baseSpeed;
+      this.angle = Math.atan2(newVelY, Math.max(newVelX, minBounceSpeed));
+      bounced = true;
+    }
+    // Right boundary collision
+    else if (this.x >= worldWidth) {
+      this.x = worldWidth;
+      // Reverse horizontal velocity component and apply bounce
+      const currentVelX = Math.cos(this.angle) * this.baseSpeed;
+      const newVelX = -Math.abs(currentVelX) * bounceForce;
+      const newVelY = Math.sin(this.angle) * this.baseSpeed;
+      this.angle = Math.atan2(newVelY, Math.min(newVelX, -minBounceSpeed));
+      bounced = true;
+    }
+
+    // Top boundary collision
+    if (this.y <= 0) {
+      this.y = 0;
+      // Reverse vertical velocity component and apply bounce
+      const currentVelY = Math.sin(this.angle) * this.baseSpeed;
+      const newVelY = Math.abs(currentVelY) * bounceForce;
+      const newVelX = Math.cos(this.angle) * this.baseSpeed;
+      this.angle = Math.atan2(Math.max(newVelY, minBounceSpeed), newVelX);
+      bounced = true;
+    }
+    // Bottom boundary collision
+    else if (this.y >= worldHeight) {
+      this.y = worldHeight;
+      // Reverse vertical velocity component and apply bounce
+      const currentVelY = Math.sin(this.angle) * this.baseSpeed;
+      const newVelY = -Math.abs(currentVelY) * bounceForce;
+      const newVelX = Math.cos(this.angle) * this.baseSpeed;
+      this.angle = Math.atan2(Math.min(newVelY, -minBounceSpeed), newVelX);
+      bounced = true;
+    }
+
+    // Add slight random variation to prevent predictable bouncing patterns
+    if (bounced) {
+      const randomVariation = (Math.random() - 0.5) * 0.2; // ±0.1 radians variation
+      this.angle += randomVariation;
+    }
 
     // Update head position
     this.segments[0].x = this.x;
@@ -505,35 +667,45 @@ class ServerSnake {
   }
 
   /**
-   * Get speed multiplier from powerups
+   * Get current speed multiplier from active powerups (e.g., speed_boost)
+   * This will be additive with the base food speedMultiplier.
    */
   getSpeedMultiplier() {
-    let multiplier = 1.0;
-    for (const powerup of this.activePowerups) {
-      if (powerup.speedBoost) {
-        multiplier *= (1 + powerup.speedBoost); // Add the boost percentage
+    let totalSpeedBoostFactor = 1.0; // Start with no boost
+    const now = Date.now();
+    this.activePowerups.forEach(powerup => {
+      if (powerup.expirationTime && now < powerup.expirationTime) {
+        if (powerup.speedBoost) { // Assuming powerup.speedBoost is a multiplier like 1.4 for 40%
+          totalSpeedBoostFactor += (powerup.speedBoost); // Additive stacking of the boost amount itself
+        }
       }
-    }
-    return multiplier;
+    });
+    return totalSpeedBoostFactor;
   }
 
   /**
-   * Get damage reduction from powerups
+   * Get damage reduction from defensive powerups - HIGHEST WINS
    */
   getDamageReduction() {
-    let reduction = 0;
-    for (const powerup of this.activePowerups) {
-      if (powerup.damageReduction) {
-        reduction = Math.max(reduction, powerup.damageReduction);
+    let maxDamageReduction = 0;
+    const now = Date.now();
+
+    this.activePowerups.forEach(powerup => {
+      // Ensure powerup is active by checking expirationTime
+      if (powerup.expirationTime && now < powerup.expirationTime) {
+        const reduction = powerup.damageReduction || 0;
+        if (reduction > maxDamageReduction) {
+          maxDamageReduction = reduction;
+        }
       }
-    }
-    return Math.min(reduction, 0.9); // Max 90% reduction
+    });
+    return maxDamageReduction; // Capped at source (e.g. forcefield is 0.8)
   }
 
   /**
    * Update active powerups
    */
-  updatePowerups() {
+  updatePowerups(deltaTime = 16.67) {
     const currentTime = Date.now();
     this.activePowerups = this.activePowerups.filter(powerup => {
       return currentTime < powerup.expirationTime;
@@ -541,19 +713,73 @@ class ServerSnake {
   }
 
   /**
+   * Check if snake has an active forcefield - ORIGINAL SYSTEM
+   */
+  hasForcefield() {
+    const now = Date.now();
+    return this.activePowerups.some(powerup => 
+      powerup.type === 'forcefield' && 
+      powerup.expirationTime && 
+      now < powerup.expirationTime
+    );
+  }
+
+  /**
+   * Check if snake has active helmet powerup
+   */
+  hasHelmet() {
+    return this.activePowerups.some(powerup => powerup.type === 'helmet');
+  }
+
+  /**
+   * Get helmet powerup for health tracking
+   */
+  getHelmet() {
+    return this.activePowerups.find(powerup => powerup.type === 'helmet');
+  }
+
+  /**
+   * Damage helmet and check if it breaks
+   * @param {number} damage - Damage to apply to helmet
+   * @returns {boolean} - True if helmet was destroyed
+   */
+  damageHelmet(damage) {
+    const helmet = this.getHelmet();
+    if (helmet && helmet.currentHelmetHealth > 0) {
+      helmet.currentHelmetHealth -= damage;
+
+      if (helmet.currentHelmetHealth <= 0) {
+        // Helmet is destroyed, remove it
+        this.activePowerups = this.activePowerups.filter(p => p.type !== 'helmet');
+        return true; // Helmet was destroyed
+      }
+      return false; // Helmet absorbed damage but still intact
+    }
+    return null; // No helmet equipped
+  }
+
+  /**
    * Add weapon to inventory - ORIGINAL SYSTEM FROM GAMELOGIC.JS
    */
   addWeaponToInventory(weapon) {
+    // Get the base weapon configurations
+    const configsFromInstance = this.gameInstance ? this.gameInstance.WEAPON_CONFIGS : undefined;
+    const WEAPON_CONFIGS_REF = configsFromInstance || WEAPON_CONFIGS_FALLBACK;
+
+    // Get the specific configuration for the picked-up weapon type
+    const weaponConfig = WEAPON_CONFIGS_REF[weapon.type] || WEAPON_CONFIGS_REF.sidearm; // Fallback to sidearm if type is unknown
+
     // Create weapon object with proper configuration
     const weaponObj = {
       type: weapon.type,
-      name: weapon.name || weapon.type,
-      damage: weapon.damage || 1,
-      maxAmmo: weapon.maxAmmo || 30,
-      currentAmmo: weapon.maxAmmo || 30,
-      fireRate: weapon.fireRate || 500,
-      projectileSpeed: weapon.projectileSpeed || 15,
-      accuracy: weapon.accuracy || 90,
+      name: weaponConfig.name,
+      damage: weaponConfig.damage,
+      maxAmmo: weaponConfig.maxAmmo,
+      currentAmmo: weaponConfig.maxAmmo, // Start with full ammo
+      fireRate: weaponConfig.fireRate,
+      projectileSpeed: weaponConfig.projectileSpeed,
+      accuracy: weaponConfig.accuracy,
+      // firingMode: weaponConfig.firingMode, // Not strictly needed on the instance if ServerGame checks global config
       lastShotTime: 0,
       canShoot: function() {
         return Date.now() - this.lastShotTime >= this.fireRate;
@@ -604,67 +830,56 @@ class ServerSnake {
    * @returns {Object|null} - Projectile object or null if can't shoot
    */
   shoot(targetX, targetY) {
-    if (this.gameMode !== 'warfare' || !this.currentWeapon || !this.alive) {
+    if (!this.currentWeapon || !this.currentWeapon.canShoot()) {
       return null;
     }
 
-    // Check if weapon can shoot
-    if (!this.currentWeapon.canShoot()) {
-      return null;
+    // Consume ammo or check sidearm
+    if (this.currentWeapon.type !== 'sidearm') {
+      if (this.currentWeapon.currentAmmo > 0) {
+        this.currentWeapon.currentAmmo--;
+      } else {
+        // Auto-switch to sidearm if out of ammo (and not already sidearm)
+        this.switchToWeapon('sidearm');
+        if (!this.currentWeapon.canShoot()) return null; // Sidearm might also be on cooldown
+      }
     }
+    this.currentWeapon.shoot(); // Mark lastShotTime
 
-    // Check ammo (except for infinite ammo weapons like sidearm)
-    if (this.currentWeapon.maxAmmo !== Infinity && this.currentWeapon.currentAmmo <= 0) {
-      return null;
-    }
+    // Get weapon configuration
+    const configsFromInstance = this.gameInstance ? this.gameInstance.WEAPON_CONFIGS : undefined;
+    const WEAPON_CONFIGS_REF = configsFromInstance || WEAPON_CONFIGS_FALLBACK;
+    const weaponConfig = WEAPON_CONFIGS_REF[this.currentWeapon.type] || WEAPON_CONFIGS_REF.sidearm;
 
-    // Calculate projectile direction
-    const dx = targetX - this.x;
-    const dy = targetY - this.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    // Calculate projectile direction with accuracy
+    const baseAngle = Math.atan2(targetY - this.y, targetX - this.x);
+    const accuracy = weaponConfig.accuracy || 90;
+    const spread = (100 - accuracy) / 100 * (Math.PI / 18); // Max 10 degree spread (PI/18 radians)
+    const finalAngle = baseAngle + (Math.random() - 0.5) * spread;
 
-    if (distance === 0) return null;
+    // Apply damage amplification
+    const damageMultiplier = this.getDamageMultiplier(); // Changed from getDamageAmplifier for consistency
+    const finalDamage = (weaponConfig.damage || 1) * damageMultiplier;
 
-    const dirX = dx / distance;
-    const dirY = dy / distance;
-
-    // Apply weapon accuracy
-    const accuracy = this.currentWeapon.accuracy || 90;
-    const spread = (100 - accuracy) / 100 * 0.5; // Convert to radians
-    const angle = Math.atan2(dirY, dirX);
-    const finalAngle = angle + (Math.random() - 0.5) * spread;
-
-    // Calculate base damage from weapon
-    let baseDamage = this.currentWeapon.damage || 1;
-
-    // Apply damage amplifier powerup if active
-    const damageAmplifier = this.getDamageAmplifier();
-    const finalDamage = baseDamage * damageAmplifier;
-
-    // Removed spammy damage logging
-
-    // Create projectile
     const projectile = {
-      id: `projectile_${Date.now()}_${Math.random()}`,
-      x: this.x,
-      y: this.y,
-      vx: Math.cos(finalAngle) * this.currentWeapon.projectileSpeed,
-      vy: Math.sin(finalAngle) * this.currentWeapon.projectileSpeed,
-      damage: finalDamage,
-      size: 3,
-      color: '#FFFF00',
-      ownerId: this.playerId || this.username,
-      createdAt: Date.now()
+      id: `proj_${this.playerId || 'ai'}_${Date.now()}`,
+      ownerId: this.playerId || (this.isAI ? this.username : 'ai_unknown'),
+      ownerRef: this, // Direct reference to the snake instance
+      x: this.x + Math.cos(this.angle) * (this.size + 5), // Start projectile slightly ahead
+      y: this.y + Math.sin(this.angle) * (this.size + 5),
+      vx: Math.cos(finalAngle) * (weaponConfig.projectileSpeed || 10),
+      vy: Math.sin(finalAngle) * (weaponConfig.projectileSpeed || 10),
+      damage: finalDamage, // Use amplified damage
+      size: weaponConfig.projectileSize || 3,
+      color: weaponConfig.color || '#FFFF00',
+      type: this.currentWeapon.type,
+      weaponType: this.currentWeapon.type, // for effects
+      createdAt: Date.now(),
+      trail: [],
+      animationOffset: Math.random() * Math.PI * 2,
+      isTracer: weaponConfig.tracerRounds || false,
+      angle: finalAngle // Store the final angle for rendering if needed
     };
-
-    // Consume ammo (if not infinite)
-    if (this.currentWeapon.maxAmmo !== Infinity) {
-      this.currentWeapon.currentAmmo--;
-    }
-
-    // Update weapon's last shot time
-    this.currentWeapon.shoot();
-
     return projectile;
   }
 
@@ -735,33 +950,24 @@ class ServerSnake {
   }
 
   /**
-   * Get damage reduction from defensive powerups - ORIGINAL SYSTEM
-   */
-  getDamageReduction() {
-    let reduction = 0;
-    this.activePowerups.forEach(powerup => {
-      if (powerup.damageReduction) {
-        reduction = Math.max(reduction, powerup.damageReduction);
-      }
-    });
-    return Math.min(reduction, 0.9); // Cap at 90% reduction
-  }
-
-  /**
-   * Get head protection from powerups - ORIGINAL SYSTEM
+   * Get head protection from powerups - HIGHEST WINS
    */
   getHeadProtection() {
-    let protection = 0;
+    let maxHeadProtection = 0;
+    const now = Date.now();
     this.activePowerups.forEach(powerup => {
-      if (powerup.headProtection) {
-        protection = Math.max(protection, powerup.headProtection);
+      if (powerup.expirationTime && now < powerup.expirationTime) {
+        const protection = powerup.headProtection || 0;
+        if (protection > maxHeadProtection) {
+          maxHeadProtection = protection;
+        }
       }
     });
-    return Math.min(protection, 0.99); // Cap at 99% protection
+    return maxHeadProtection; // Capped at source (e.g. forcefield is 0.9)
   }
 
   /**
-   * Get boost damage multiplier from powerups (for battering ram)
+   * Get boost damage multiplier from offensive powerups (e.g., battering_ram)
    */
   getBoostDamageMultiplier() {
     let multiplier = 1.0;
@@ -774,15 +980,18 @@ class ServerSnake {
   }
 
   /**
-   * Get damage amplifier from powerups (for weapon damage)
+   * Get damage multiplier from offensive powerups (e.g., damage_amplifier)
    */
-  getDamageAmplifier() {
+  getDamageMultiplier() { // Renamed from getDamageAmplifier
     let multiplier = 1.0;
-    for (const powerup of this.activePowerups) {
-      if (powerup.damageMultiplier) {
-        multiplier = Math.max(multiplier, powerup.damageMultiplier);
+    const now = Date.now();
+    this.activePowerups.forEach(powerup => {
+      if (powerup.expirationTime && now < powerup.expirationTime) {
+        if (powerup.type === 'damage_amplifier' && powerup.damageMultiplier) {
+          multiplier *= powerup.damageMultiplier; // Stack multiplicatively if multiple somehow active
+        }
       }
-    }
+    });
     return multiplier;
   }
 
@@ -839,6 +1048,38 @@ class ServerSnake {
   resetPowerupInventory() {
     this.activePowerups = [];
     this.powerupInventory = [];
+  }
+
+  /**
+   * Reset snake state after cashout
+   */
+  resetAfterCashout() {
+    // Reset cashout-related state
+    this.cashedOut = false;
+    this.cashoutBalance = 0;
+    
+    // Reset cash to initial wager
+    this.collectedCash = this.wager;
+    
+    // Reset other gameplay state
+    this.alive = true;
+    this.invincible = false;
+    this.invincibilityEndTime = 0;
+    this.blinkPhase = 0;
+    
+    // Reset segments to initial state
+    this.segments = [{
+      x: this.x,
+      y: this.y,
+      health: 100,
+      maxHealth: 100
+    }];
+    
+    // Reset growth state
+    this.growthQueue = 0;
+    
+    // Activate spawn protection
+    this.activateSpawnInvincibility(this.wager);
   }
 }
 

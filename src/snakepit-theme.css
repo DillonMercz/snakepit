@@ -97,7 +97,7 @@ body.game-active {
     0 0 10px var(--neon-green),
     0 0 15px var(--neon-green),
     0 0 20px var(--neon-green);
-  animation: neon-pulse 2s ease-in-out infinite alternate;
+  animation: neon-pulse 3s ease-in-out infinite alternate; /* Slower for better performance */
   white-space: pre;
   overflow: visible;
   padding: 1rem 1rem 1rem 5rem;
@@ -121,8 +121,8 @@ body.game-active {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: neon-pulse 2s ease-in-out infinite alternate,
-             gradient-shift 3s ease-in-out infinite;
+  animation: neon-pulse 3s ease-in-out infinite alternate,
+             gradient-shift 5s ease-in-out infinite; /* Slower animations for better performance */
   text-shadow:
     0 0 10px var(--neon-green),
     0 0 20px var(--neon-green),
@@ -376,6 +376,165 @@ body.game-active {
   position: relative;
 }
 
+/* Status Bar - Under Minimap */
+.status-bar {
+  position: absolute;
+  top: 240px; /* Position under minimap (200px height + 20px top + 20px gap) */
+  right: 20px;
+  width: 250px; /* Same width as minimap */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  background: rgba(10, 10, 15, 0.9);
+  border: 1px solid var(--neon-cyan);
+  border-radius: 8px;
+  padding: 0.5rem;
+  backdrop-filter: blur(5px);
+  box-shadow: var(--glow-small) var(--neon-cyan);
+  z-index: 20;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 45%;
+}
+
+.status-item.connected {
+  color: var(--neon-green);
+}
+
+.status-item.disconnected {
+  color: var(--neon-orange);
+}
+
+.status-icon {
+  font-size: 0.9rem;
+}
+
+.status-text {
+  font-weight: 600;
+}
+
+/* Cash Tracker - Under Status Bar */
+.cash-tracker {
+  position: absolute;
+  top: 290px; /* Position under status bar */
+  right: 20px;
+  width: 250px; /* Same width as minimap and status bar */
+  background: rgba(10, 10, 15, 0.9);
+  border: 2px solid var(--neon-green);
+  border-radius: 8px;
+  padding: 0.75rem;
+  backdrop-filter: blur(5px);
+  box-shadow: var(--glow-medium) var(--neon-green);
+  z-index: 15;
+}
+
+.cash-tracker-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid rgba(0, 255, 0, 0.3);
+}
+
+.cash-tracker-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--neon-green);
+  text-shadow: var(--glow-small) var(--neon-green);
+}
+
+.cash-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+
+.cash-stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.2rem 0;
+}
+
+.cash-stat-item.king-status {
+  background: rgba(255, 215, 0, 0.1);
+  border-radius: 4px;
+  padding: 0.3rem;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.cash-stat-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.cash-stat-value {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* Cashout Button in Cash Tracker */
+.cash-tracker .cashout-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.cash-tracker .cashout-button {
+  width: 100%;
+  padding: 0.5rem;
+  font-family: 'Orbitron', monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border: 2px solid;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.cash-tracker .cashout-button.neon-green {
+  color: var(--neon-green);
+  border-color: var(--neon-green);
+  box-shadow: var(--glow-small) var(--neon-green);
+}
+
+.cash-tracker .cashout-button.neon-green:hover {
+  background: rgba(0, 255, 0, 0.1);
+  box-shadow: var(--glow-medium) var(--neon-green);
+  transform: scale(1.02);
+}
+
+.cash-tracker .cashout-button.neon-disabled {
+  color: var(--text-secondary);
+  border-color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.cash-tracker .cashout-hint {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.6rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
 /* Game UI - Vertical layout under minimap */
 .game-ui {
   position: absolute;
@@ -475,68 +634,251 @@ body.game-active {
   background: rgba(10, 10, 10, 0.9);
 }
 
-/* Weapon Inventory - Bottom Right */
+/* Weapon Inventory - Bottom Left */
 .weapon-inventory {
   position: absolute;
   bottom: 10px;
-  right: 10px;
-  background: rgba(10, 10, 15, 0.85);
-  border: 1px solid var(--neon-purple);
-  border-radius: 6px;
-  padding: 0.5rem;
+  left: 10px;
+  background: rgba(10, 10, 15, 0.9);
+  border: 2px solid var(--neon-purple);
+  border-radius: 8px;
   backdrop-filter: blur(5px);
-  box-shadow: var(--glow-small) var(--neon-purple);
+  box-shadow: var(--glow-medium) var(--neon-purple);
   z-index: 15;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+/* Collapsed State - No header, just weapon squares */
+.weapon-inventory.collapsed {
+  padding: 0.5rem;
+  width: 200px;
+  height: 90px;
+}
+
+/* Expanded State */
+.weapon-inventory.expanded {
+  padding: 0.75rem;
+  min-width: 280px;
+  max-width: 320px;
 }
 
 .inventory-header {
-  display: none; /* Hide header to save space */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid rgba(128, 0, 255, 0.3);
 }
 
 .inventory-title {
-  display: none; /* Hide title to save space */
+  font-family: 'Orbitron', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--neon-purple);
+  text-shadow: var(--glow-small) var(--neon-purple);
+  flex: 1;
 }
 
-/* Horizontal Weapon Slots */
+.inventory-toggle {
+  background: transparent;
+  border: 1px solid var(--neon-purple);
+  color: var(--neon-purple);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-family: 'Orbitron', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.inventory-toggle:hover {
+  background: rgba(128, 0, 255, 0.2);
+  box-shadow: var(--glow-small) var(--neon-purple);
+  transform: scale(1.1);
+}
+
+/* Compact Weapon Slots - Uniform Square Layout */
+.inventory-slots-compact {
+  display: flex;
+  gap: 0.3rem;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.inventory-slot-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(128, 0, 255, 0.3);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  width: 55px;
+  height: 70px;
+  position: relative;
+}
+
+.inventory-slot-compact.active {
+  background: rgba(128, 0, 255, 0.2);
+  border-color: var(--neon-pink);
+  box-shadow: var(--glow-medium) var(--neon-pink);
+  transform: scale(1.05);
+}
+
+.inventory-slot-compact .slot-key {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 14px;
+  height: 14px;
+  font-size: 0.55rem;
+  background: var(--neon-purple);
+  color: var(--bg-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Orbitron', monospace;
+  font-weight: 700;
+}
+
+.inventory-slot-compact.active .slot-key {
+  background: var(--neon-pink);
+  box-shadow: var(--glow-small) var(--neon-pink);
+}
+
+.weapon-thumbnail {
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.2rem;
+  font-size: 1.2rem;
+  color: var(--text-primary);
+}
+
+.inventory-slot-compact.active .weapon-thumbnail {
+  background: rgba(255, 0, 128, 0.2);
+  color: var(--neon-pink);
+}
+
+.weapon-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.slot-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+}
+
+.slot-weapon-name {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.45rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  line-height: 1;
+  margin-bottom: 0.05rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.slot-ammo {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.4rem;
+  color: var(--text-secondary);
+  line-height: 1;
+  font-weight: 700;
+  text-align: center;
+}
+
+.inventory-slot-compact.active .slot-weapon-name {
+  color: var(--neon-pink);
+}
+
+.inventory-slot-compact.active .slot-ammo {
+  color: var(--text-primary);
+}
+
+/* Expanded Content */
+.inventory-expanded-content {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(128, 0, 255, 0.3);
+  animation: expand-in 0.3s ease;
+}
+
+@keyframes expand-in {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+/* Full Weapon Slots - Only in Expanded State */
 .inventory-slots-horizontal {
   display: flex;
-  gap: 0.25rem;
-  margin-bottom: 0.5rem;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
 }
 
 .inventory-slot-horizontal {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: 0.3rem;
+  padding: 0.5rem;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(128, 0, 255, 0.3);
-  border-radius: 4px;
+  border-radius: 6px;
   transition: all 0.2s ease;
-  min-width: 60px;
-  max-width: 80px;
   position: relative;
+  min-height: 40px;
 }
 
 .inventory-slot-horizontal.active {
   background: rgba(128, 0, 255, 0.2);
   border-color: var(--neon-pink);
-  box-shadow: var(--glow-small) var(--neon-pink);
+  box-shadow: var(--glow-medium) var(--neon-pink);
 }
 
 .slot-key {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
   background: var(--neon-purple);
   color: var(--bg-primary);
   font-family: 'Orbitron', monospace;
   font-weight: 700;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   border-radius: 50%;
-  margin-bottom: 0.2rem;
+  margin-right: 0.75rem;
   flex-shrink: 0;
 }
 
@@ -546,25 +888,25 @@ body.game-active {
 }
 
 .slot-content-horizontal {
-  text-align: center;
-  width: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  text-align: left;
 }
 
 .slot-name {
-  display: none; /* Hide slot names to save space */
+  font-family: 'Orbitron', monospace;
+  font-size: 0.7rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-bottom: 0.2rem;
 }
 
 .slot-weapon {
   font-family: 'Share Tech Mono', monospace;
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   color: var(--text-secondary);
-  line-height: 1.1;
-  min-height: 1.8rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  overflow: hidden;
+  line-height: 1.2;
 }
 
 .inventory-slot-horizontal.active .slot-weapon {
@@ -593,22 +935,28 @@ body.game-active {
 
 /* Ammo Inventory */
 .ammo-inventory {
-  margin-bottom: 0.3rem;
-  padding: 0.3rem;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(128, 0, 255, 0.2);
-  border-radius: 3px;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  border-radius: 6px;
 }
 
 .ammo-header {
-  display: none; /* Hide header to save space */
+  font-family: 'Orbitron', monospace;
+  font-size: 0.7rem;
+  color: var(--neon-cyan);
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .ammo-types {
   display: flex;
-  gap: 0.2rem;
+  gap: 0.3rem;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: space-between;
 }
 
 .ammo-type {
@@ -629,6 +977,17 @@ body.game-active {
 
 .ammo-icon {
   font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.ammo-name {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.5rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  flex: 1;
+  text-align: left;
+  line-height: 1;
 }
 
 .ammo-count {
@@ -637,19 +996,26 @@ body.game-active {
   color: var(--text-secondary);
   font-weight: 600;
   min-width: 12px;
+  flex-shrink: 0;
 }
 
 /* Powerup Inventory */
 .powerup-inventory {
-  margin-bottom: 0.3rem;
-  padding: 0.3rem;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 0, 128, 0.2);
-  border-radius: 3px;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 0, 128, 0.3);
+  border-radius: 6px;
 }
 
 .powerup-header {
-  display: none; /* Hide header to save space */
+  font-family: 'Orbitron', monospace;
+  font-size: 0.7rem;
+  color: var(--neon-pink);
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .powerup-types {
@@ -743,11 +1109,17 @@ body.game-active {
 }
 
 .inventory-controls {
-  display: none; /* Hide controls to save space */
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(128, 0, 255, 0.3);
+  text-align: center;
 }
 
 .control-hint {
-  display: none; /* Hide hint to save space */
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 /* Instructions */
@@ -2332,7 +2704,7 @@ body.game-active {
   }
 }
 
-/* Animated Background Colors */
+/* Optimized Animated Background Colors */
 .animated-background {
   position: fixed;
   top: 0;
@@ -2348,7 +2720,8 @@ body.game-active {
     rgba(255, 128, 0, 0.08) 100%
   );
   background-size: 400% 400%;
-  animation: gradient-flow 12s ease-in-out infinite;
+  animation: gradient-flow 20s ease-in-out infinite; /* Slower animation for better performance */
+  will-change: background-position; /* Optimize for animation */
 }
 
 @keyframes gradient-flow {
@@ -2451,8 +2824,8 @@ body.game-active {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: neon-pulse 2s ease-in-out infinite alternate,
-             gradient-shift 3s ease-in-out infinite;
+  animation: neon-pulse 3s ease-in-out infinite alternate,
+             gradient-shift 5s ease-in-out infinite; /* Slower animations for better performance */
   text-shadow:
     0 0 10px var(--neon-green),
     0 0 20px var(--neon-green),

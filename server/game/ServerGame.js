@@ -10,7 +10,7 @@ const WEAPON_CONFIGS = {
     damage: 1,
     maxAmmo: Infinity,
     fireRate: 300,
-    projectileSpeed: 12,
+    projectileSpeed: 15, // Original: 12
     accuracy: 90,
     rarity: 'default',
     color: '#888888',
@@ -24,7 +24,7 @@ const WEAPON_CONFIGS = {
     damage: 2,
     maxAmmo: 24,
     fireRate: 400,
-    projectileSpeed: 18,
+    projectileSpeed: 22, // Original: 18
     accuracy: 95,
     rarity: 'common',
     color: '#FF4444',
@@ -37,7 +37,7 @@ const WEAPON_CONFIGS = {
     damage: 1.5,
     maxAmmo: 40,
     fireRate: 150,
-    projectileSpeed: 15,
+    projectileSpeed: 19, // Original: 15
     accuracy: 85,
     rarity: 'common',
     color: '#44FF44',
@@ -52,7 +52,7 @@ const WEAPON_CONFIGS = {
     damage: 4,
     maxAmmo: 20,
     fireRate: 600,
-    projectileSpeed: 25,
+    projectileSpeed: 31, // Original: 25
     accuracy: 98,
     rarity: 'uncommon',
     color: '#FF8844',
@@ -65,7 +65,7 @@ const WEAPON_CONFIGS = {
     damage: 6,
     maxAmmo: 12,
     fireRate: 800,
-    projectileSpeed: 20,
+    projectileSpeed: 25, // Original: 20
     accuracy: 90,
     rarity: 'uncommon',
     color: '#8844FF',
@@ -79,7 +79,7 @@ const WEAPON_CONFIGS = {
     damage: 12,
     maxAmmo: 6,
     fireRate: 1200,
-    projectileSpeed: 18,
+    projectileSpeed: 22, // Original: 18
     accuracy: 85,
     rarity: 'rare',
     color: '#FF4488',
@@ -92,7 +92,7 @@ const WEAPON_CONFIGS = {
     damage: 15,
     maxAmmo: 8,
     fireRate: 1500,
-    projectileSpeed: 35,
+    projectileSpeed: 44, // Original: 35
     accuracy: 100,
     rarity: 'rare',
     color: '#44FFFF',
@@ -105,8 +105,8 @@ const WEAPON_CONFIGS = {
     tier: 4,
     damage: 2,
     maxAmmo: 200,
-    fireRate: 80,
-    projectileSpeed: 22,
+    fireRate: 80, // Reverted from 600 back to 80
+    projectileSpeed: 28, // Original: 22
     accuracy: 75,
     rarity: 'legendary',
     color: '#FFFF44',
@@ -204,6 +204,14 @@ const POWERUP_CONFIGS = {
   }
 };
 
+// Add VACUUM_CONSTANTS at the class level or near the top
+const VACUUM_SETTINGS = {
+  RADIUS: 200, // Increased from 150
+  STRENGTH: 0.25, // Increased from 0.15
+  MAX_SPEED: 15, // Increased from 12
+  DAMPING: 0.85 // Decreased from 0.92 for faster response
+};
+
 class ServerGame {
   constructor(gameMode, options = {}) {
     this.gameMode = gameMode;
@@ -251,6 +259,13 @@ class ServerGame {
     }
 
     console.log(`🎮 ServerGame initialized for ${gameMode} mode`);
+
+    this.VACUUM_SETTINGS = { // Make settings accessible via this
+      RADIUS: 200,
+      STRENGTH: 0.25,
+      MAX_SPEED: 15,
+      DAMPING: 0.85
+    };
   }
 
   /**
@@ -266,7 +281,10 @@ class ServerGame {
         y: Math.random() * this.worldHeight,
         color: `hsl(${Math.random() * 360}, 70%, 60%)`,
         size: 4 + Math.random() * 3,
-        value: 1
+        value: 1,
+        vx: 0, // For vacuum
+        vy: 0, // For vacuum
+        attractedToPlayerId: null // For vacuum
       });
     }
 
@@ -353,7 +371,7 @@ class ServerGame {
    * Generate weapons, ammo, and powerups for warfare mode
    */
   generateWarfareItems() {
-    // Generate weapons - reduced for better performance
+    // Generate weapons
     for (let i = 0; i < 30; i++) {
       this.weapons.push({
         id: `weapon_${i}`,
@@ -361,13 +379,14 @@ class ServerGame {
         y: Math.random() * this.worldHeight,
         type: this.getRandomWeaponType(),
         collected: false,
+        vx: 0, vy: 0, attractedToPlayerId: null, // For vacuum
         animationOffset: Math.random() * Math.PI * 2,
         pulsePhase: Math.random() * Math.PI * 2,
         rotationSpeed: 0.5 + Math.random() * 1.0
       });
     }
 
-    // Generate ammo - reduced for better performance
+    // Generate ammo
     for (let i = 0; i < 80; i++) {
       this.ammo.push({
         id: `ammo_${i}`,
@@ -376,13 +395,14 @@ class ServerGame {
         type: this.getRandomAmmoType(),
         amount: Math.floor(10 + Math.random() * 20),
         collected: false,
+        vx: 0, vy: 0, attractedToPlayerId: null, // For vacuum
         bobPhase: Math.random() * Math.PI * 2,
         sparklePhase: Math.random() * Math.PI * 2,
         animationOffset: Math.random() * Math.PI * 2
       });
     }
 
-    // Generate powerups - reduced for better performance
+    // Generate powerups
     for (let i = 0; i < 40; i++) {
       this.powerups.push({
         id: `powerup_${i}`,
@@ -390,6 +410,7 @@ class ServerGame {
         y: Math.random() * this.worldHeight,
         type: this.getRandomPowerupType(),
         collected: false,
+        vx: 0, vy: 0, attractedToPlayerId: null, // For vacuum
         bobPhase: Math.random() * Math.PI * 2,
         animationOffset: Math.random() * Math.PI * 2,
         pulsePhase: Math.random() * Math.PI * 2
@@ -426,6 +447,39 @@ class ServerGame {
 
       // Activate spawn invincibility
       snake.activateSpawnInvincibility(playerData.wager);
+
+      // --- START TEST CODE: Give player a Minigun ---
+      if (snake.isPlayer) { // Only give to human players for testing
+        const minigunConfig = WEAPON_CONFIGS.minigun;
+        if (minigunConfig) {
+          const minigunInstance = {
+            type: 'minigun',
+            name: minigunConfig.name,
+            damage: minigunConfig.damage,
+            maxAmmo: minigunConfig.maxAmmo,
+            currentAmmo: minigunConfig.maxAmmo, // Start with full ammo
+            fireRate: minigunConfig.fireRate,
+            projectileSpeed: minigunConfig.projectileSpeed,
+            accuracy: minigunConfig.accuracy,
+            lastShotTime: 0,
+            canShoot: function() {
+              return Date.now() - this.lastShotTime >= this.fireRate;
+            },
+            shoot: function() {
+              if (this.canShoot()) {
+                this.lastShotTime = Date.now();
+                return true;
+              }
+              return false;
+            }
+          };
+          // Add to inventory and equip
+          snake.weaponInventory.primaryWeapon = minigunInstance;
+          snake.switchToWeapon('primaryWeapon');
+          console.log(`🔫 TEST: Player ${snake.username} spawned with a Minigun!`);
+        }
+      }
+      // --- END TEST CODE ---
 
       this.players.set(playerData.id, snake);
       
@@ -497,7 +551,6 @@ class ServerGame {
     }
 
     if (sanitizedInput.boosting !== undefined) {
-      console.log(`🎮 ServerGame: Setting player ${playerId} boosting to: ${sanitizedInput.boosting}`);
       player.boosting = sanitizedInput.boosting;
     }
 
@@ -631,6 +684,9 @@ class ServerGame {
 
     // Update glow orbs
     this.updateGlowOrbs();
+
+    // Update food items
+    this.updateFoodItems();
 
     // Update coins
     this.updateCoins();
@@ -805,10 +861,10 @@ class ServerGame {
         // Set ownerRef for proper friendly fire prevention
         projectile.ownerRef = snake;
 
-        console.log(`🤖 AI ${snake.username} shot projectile: weapon=${snake.currentWeapon?.type || 'none'}, damage=${projectile.damage}`);
+        // AI shot projectile - logging removed to reduce spam
         this.projectiles.push(projectile);
       } else {
-        console.log(`🤖 AI ${snake.username} failed to shoot: weapon=${snake.currentWeapon?.type || 'none'}, ammo=${snake.currentWeapon?.currentAmmo || 0}`);
+        // AI failed to shoot - logging removed to reduce spam
       }
     }
 
@@ -1456,26 +1512,95 @@ class ServerGame {
   }
 
   /**
-   * Update coins (remove old ones)
+   * Update coins (remove old ones, apply vacuum effect with lock-on)
    */
   updateCoins() {
     const now = Date.now();
-    this.coins = this.coins.filter(coin =>
-      !coin.collected && (now - coin.creationTime) < 30000
-    );
+    const attractors = Array.from(this.players.values()); // Coins only attracted by human players for now
+    this.coins = this.coins.filter(coin => {
+      if (coin.collected || (now - coin.creationTime) > 30000) {
+        return false;
+      }
+      this.applyVacuumToItem(coin, attractors, 'coin');
+      return true;
+    });
+  }
+
+  /**
+   * Helper function to apply vacuum physics to an item.
+   * @param {Object} item - The item to apply vacuum to (e.g., coin, food).
+   * @param {Array<ServerSnake>} potentialAttractors - Array of snakes that can attract the item.
+   * @param {string} itemType - Optional string for logging/debugging.
+   */
+  applyVacuumToItem(item, potentialAttractors, itemType = 'item') {
+    // Skip if item is already collected or marked for deletion
+    if (item.collected || item.markedForDeletion) {
+      item.vx = 0;
+      item.vy = 0;
+      return;
+    }
+
+    let targetAttractor = null;
+    let minDistance = Infinity;
+
+    // Find the closest attractor
+    for (const attractor of potentialAttractors) {
+      if (!attractor.alive) continue;
+
+      const distance = Math.hypot(attractor.x - item.x, attractor.y - item.y);
+      const vacuumRadius = attractor.size * (attractor.boosting ? 6 : 4); // Increased from 5 and 3.5
+
+      if (distance < vacuumRadius && distance < minDistance) {
+        minDistance = distance;
+        targetAttractor = attractor;
+      }
+    }
+
+    if (!targetAttractor) return;
+
+    // Calculate vacuum effect
+    const vacuumRadius = targetAttractor.size * (targetAttractor.boosting ? 6 : 4);
+    const distanceRatio = 1 - (minDistance / vacuumRadius);
+    
+    // Stronger pull when boosting
+    const basePullStrength = targetAttractor.boosting ? 3.5 : 1.8; // Increased from 2.5 and 1.2
+    const pullStrength = basePullStrength + distanceRatio * (targetAttractor.boosting ? 5.0 : 3.0); // Increased from 4.0 and 2.0
+
+    // Calculate angle and movement
+    const angle = Math.atan2(targetAttractor.y - item.y, targetAttractor.x - item.x);
+    const dx = Math.cos(angle) * pullStrength;
+    const dy = Math.sin(angle) * pullStrength;
+
+    // Update velocities with momentum and damping
+    const damping = targetAttractor.boosting ? 0.5 : 0.7; // Decreased from 0.6 and 0.8 for faster response
+    const momentum = targetAttractor.boosting ? 0.6 : 0.3; // Increased from 0.4 and 0.2
+
+    // Initialize velocities if they don't exist
+    item.vx = item.vx || 0;
+    item.vy = item.vy || 0;
+
+    // Apply velocity changes
+    item.vx = item.vx * damping + dx * momentum;
+    item.vy = item.vy * damping + dy * momentum;
+
+    // Update position
+    item.x += item.vx;
+    item.y += item.vy;
+
+    // Add slight randomization to prevent items from stacking
+    if (targetAttractor.boosting) {
+      item.x += (Math.random() - 0.5) * 0.8; // Increased from 0.5
+      item.y += (Math.random() - 0.5) * 0.8; // Increased from 0.5
+    }
   }
 
   /**
    * Update warfare mode specific elements
    */
   updateWarfareMode() {
-    // Update projectiles - ORIGINAL ALGORITHM
     this.updateProjectiles();
-
-    // Update collision effects
     this.updateCollisionEffects();
-
-    // Maintain weapon/ammo/powerup counts
+    this.updateWarfareCollectibles(); // New call for vacuum effect
     this.maintainWarfareItems();
   }
 
@@ -1531,17 +1656,79 @@ class ServerGame {
         const headDist = Math.sqrt(headDx * headDx + headDy * headDy);
 
         if (headDist < snake.size) {
-          // Create headshot collision effect
-          this.createCollisionEffect(projectile, snake.x, snake.y, 'head', snake);
+          // Check for forcefield ricochet first
+          if (snake.hasForcefield && snake.hasForcefield()) {
+            // Create ricochet effect
+            this.createRicochetEffect(projectile, snake.x, snake.y);
 
-          // Check headshot protection - ORIGINAL PROTECTION SYSTEM
-          if (this.checkHeadshotProtection(snake, projectile)) {
-            return false; // Remove projectile but snake survives
+            // Calculate ricochet angle (reflect off snake's surface)
+            const incidentAngle = Math.atan2(projectile.vy, projectile.vx);
+            const surfaceNormal = Math.atan2(headDy, headDx); // Normal from projectile to snake center
+            const reflectionAngle = 2 * surfaceNormal - incidentAngle;
+
+            // Apply ricochet with slight randomization
+            const randomVariation = (Math.random() - 0.5) * 0.3; // ±0.15 radians
+            const finalAngle = reflectionAngle + randomVariation;
+
+            // Update projectile velocity (maintain speed but change direction)
+            const speed = Math.sqrt(projectile.vx * projectile.vx + projectile.vy * projectile.vy);
+            projectile.vx = Math.cos(finalAngle) * speed * 0.9; // Slight speed reduction
+            projectile.vy = Math.sin(finalAngle) * speed * 0.9;
+
+            // Clear owner to prevent infinite bouncing
+            projectile.ownerId = null;
+            projectile.ownerRef = null;
+
+            return true; // Keep projectile but ricochet it
           }
 
-          // Instant kill on headshot - ORIGINAL BEHAVIOR
-          const weapon = projectile.type || projectile.weaponType || 'unknown';
-          this.handleSnakeDeath(snake, projectile.ownerId, weapon, 'headshot');
+          // --- START HELMET LOGIC FOR HEADSHOTS ---
+          const activeHelmet = snake.getHelmet(); // Method in ServerSnake.js
+          let projectileAbsorbedByHelmet = false;
+          let killSnake = true; // Assume snake will be killed unless helmet saves it
+
+          if (activeHelmet && activeHelmet.currentHelmetHealth > 0) {
+            const helmetInitialHealth = activeHelmet.currentHelmetHealth;
+            const projectileDamage = projectile.damage || 1; // Ensure projectile has damage value
+
+            // damageHelmet returns true if helmet was destroyed, false if it absorbed but survived, null if no helmet
+            const helmetDestroyedByThisHit = snake.damageHelmet(projectileDamage);
+
+            if (helmetInitialHealth >= projectileDamage) {
+              // Helmet had enough health to absorb the entire projectile damage
+              projectileAbsorbedByHelmet = true;
+              killSnake = false; // Snake survives this hit
+              if (helmetDestroyedByThisHit === true) {
+                this.createHelmetBreakEffect(snake.x, snake.y);
+              }
+              this.createCollisionEffect(projectile, snake.x, snake.y, 'head_helmet_absorb', snake);
+            } else {
+              // Helmet had some health, absorbed part of it, but broke. Damage still passes.
+              // killSnake remains true.
+              if (helmetDestroyedByThisHit === true) { // Should be true if initial health < damage
+                this.createHelmetBreakEffect(snake.x, snake.y);
+              }
+              // No separate collision effect here, will fall through to standard headshot if killSnake is true
+            }
+          }
+          // --- END HELMET LOGIC FOR HEADSHOTS ---
+
+          if (projectileAbsorbedByHelmet) {
+            return false; // Projectile is consumed, snake survived
+          }
+
+          // If projectile was not absorbed by helmet (no helmet, 0 health, or broke and couldn't absorb full hit)
+          // Create standard headshot collision effect
+          this.createCollisionEffect(projectile, snake.x, snake.y, 'head', snake);
+          
+          if (killSnake) { // If helmet didn't save the snake
+            // If you want to keep probabilistic protection for non-helmet scenarios or as a last resort:
+            // if (this.checkHeadshotProtection(snake, projectile)) {
+            //   return false; // Remove projectile but snake survives probabilistically
+            // }
+            const weapon = projectile.type || projectile.weaponType || 'unknown';
+            this.handleSnakeDeath(snake, projectile.ownerId, weapon, 'headshot');
+          }
           return false; // Remove projectile
         }
 
@@ -1554,6 +1741,32 @@ class ServerGame {
           const dist = Math.sqrt(dx * dx + dy * dy);
 
           if (dist < snake.size) {
+            // Check for forcefield ricochet on body hits too
+            if (snake.hasForcefield && snake.hasForcefield()) {
+              // Create ricochet effect
+              this.createRicochetEffect(projectile, segment.x, segment.y);
+
+              // Calculate ricochet angle (reflect off segment surface)
+              const incidentAngle = Math.atan2(projectile.vy, projectile.vx);
+              const surfaceNormal = Math.atan2(dy, dx); // Normal from projectile to segment center
+              const reflectionAngle = 2 * surfaceNormal - incidentAngle;
+
+              // Apply ricochet with slight randomization
+              const randomVariation = (Math.random() - 0.5) * 0.3; // ±0.15 radians
+              const finalAngle = reflectionAngle + randomVariation;
+
+              // Update projectile velocity (maintain speed but change direction)
+              const speed = Math.sqrt(projectile.vx * projectile.vx + projectile.vy * projectile.vy);
+              projectile.vx = Math.cos(finalAngle) * speed * 0.9; // Slight speed reduction
+              projectile.vy = Math.sin(finalAngle) * speed * 0.9;
+
+              // Clear owner to prevent infinite bouncing
+              projectile.ownerId = null;
+              projectile.ownerRef = null;
+
+              return true; // Keep projectile but ricochet it
+            }
+
             // Create body hit collision effect
             this.createCollisionEffect(projectile, segment.x, segment.y, 'body', snake);
 
@@ -1770,10 +1983,7 @@ class ServerGame {
     // Apply damage
     const damage = projectile.damage || 1;
 
-    // Debug logging for damage application
-    if (damage !== 1) {
-      console.log(`💥 ${player.username} hit by projectile: damage=${damage}, weapon=${projectile.type || 'unknown'}, owner=${projectile.ownerId}`);
-    }
+    // Debug logging for damage application - removed to reduce spam
 
     player.takeDamage(damage);
 
@@ -1782,6 +1992,63 @@ class ServerGame {
       this.createCoinsFromSnake(player);
       this.schedulePlayerRespawn(player);
     }
+  }
+
+  /**
+   * Create ricochet effect when projectile bounces off forcefield
+   * @param {Object} projectile - Projectile that ricocheted
+   * @param {number} x - Ricochet location X
+   * @param {number} y - Ricochet location Y
+   */
+  createRicochetEffect(projectile, x, y) {
+    const effectId = `ricochet_${Date.now()}_${Math.random()}`;
+
+    const effect = {
+      id: effectId,
+      x: x,
+      y: y,
+      type: 'ricochet',
+      weaponType: projectile.type || 'sidearm',
+      createdAt: Date.now(),
+      duration: 800, // Longer duration for ricochet effect
+      particles: this.generateRicochetParticles(x, y),
+      color: '#00FFFF', // Cyan color for forcefield ricochet
+      size: 25,
+      intensity: 1.5
+    };
+
+    this.collisionEffects.push(effect);
+  }
+
+  /**
+   * Generate particles for ricochet effect
+   * @param {number} x - Effect center X
+   * @param {number} y - Effect center Y
+   * @returns {Array} - Array of particles
+   */
+  generateRicochetParticles(x, y) {
+    const particles = [];
+    const particleCount = 15;
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 0.5;
+      const speed = 3 + Math.random() * 5;
+      const size = 3 + Math.random() * 4;
+      const life = 600 + Math.random() * 400;
+
+      particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: size,
+        life: life,
+        maxLife: life,
+        color: '#00FFFF' // Cyan for forcefield effect
+      });
+    }
+
+    return particles;
   }
 
   /**
@@ -1924,38 +2191,56 @@ class ServerGame {
   }
 
   /**
-   * Create coins from a dead snake's segments - ORIGINAL ALGORITHM
+   * Create coins from a dead snake's segments - MODIFIED FOR HEADSHOTS & VX/VY
    * @param {ServerSnake} snake - Snake to create coins from
    */
   createCoinsFromSnake(snake) {
-    // Get the snake's actual cash balance at the moment of death (original mechanic)
     const totalCashValue = snake.collectedCash || snake.wager || 50;
 
-    // Calculate total number of coins to create (original algorithm)
-    const totalCoins = snake.segments.length * 3; // 3 coins per segment for good distribution
-    const valuePerCoin = Math.max(1, Math.floor(totalCashValue / totalCoins)); // Minimum $1 per coin
+    if (!snake.segments || snake.segments.length === 0) {
+      // console.warn(`Snake ${snake.username} has no segments for coin creation.`);
+      return;
+    }
 
-    // Create coins from each segment (skip head)
-    snake.segments.forEach((segment, index) => {
-      if (index === 0) return; // Skip head
+    const numSegments = snake.segments.length;
+    // Determine number of coins: at least 3, or 2 per segment, max 30.
+    let coinsToCreateCount = Math.max(3, numSegments * 2);
+    coinsToCreateCount = Math.min(coinsToCreateCount, 30);
 
-      // Create 3 coins per segment (original mechanic)
-      for (let i = 0; i < 3; i++) {
-        this.coins.push({
-          id: `coin_${Date.now()}_${index}_${i}`,
-          x: segment.x + (Math.random() - 0.5) * 30,
-          y: segment.y + (Math.random() - 0.5) * 30,
-          value: valuePerCoin,
-          size: 8 + Math.random() * 4,
-          creationTime: Date.now(),
-          collected: false,
-          bobPhase: Math.random() * Math.PI * 2,
-          sparklePhase: Math.random() * Math.PI * 2
-        });
-      }
-    });
+    let valuePerCoin = 0;
+    if (coinsToCreateCount > 0) {
+        valuePerCoin = Math.max(1, Math.floor(totalCashValue / coinsToCreateCount));
+    }
 
-    // Removed spammy log
+    // If total value is low, ensure coins reflect that, or drop $1 coins.
+    if (totalCashValue > 0 && valuePerCoin === 0) {
+        valuePerCoin = 1;
+        coinsToCreateCount = Math.min(Math.max(1, Math.floor(totalCashValue)), 30);
+    }
+
+    if (coinsToCreateCount === 0 && totalCashValue > 0) { // Still no coins but there was value?
+        coinsToCreateCount = 1; // Drop at least one coin with the total value
+        valuePerCoin = totalCashValue;
+    }
+
+    for (let i = 0; i < coinsToCreateCount; i++) {
+      // Distribute coins based on existing segments, cycling through them
+      const segmentToUse = snake.segments[i % numSegments];
+      this.coins.push({
+        id: `coin_${Date.now()}_${snake.playerId || 'ai'}_${i}`,
+        x: segmentToUse.x + (Math.random() - 0.5) * 30,
+        y: segmentToUse.y + (Math.random() - 0.5) * 30,
+        value: valuePerCoin,
+        size: 15 + Math.random() * 8,
+        creationTime: Date.now(),
+        collected: false,
+        attractedToPlayerId: null, // For vacuum
+        vx: (Math.random() - 0.5) * 4, // Initial scatter velocity X
+        vy: (Math.random() - 0.5) * 4, // Initial scatter velocity Y
+        bobPhase: Math.random() * Math.PI * 2,
+        sparklePhase: Math.random() * Math.PI * 2
+      });
+    }
   }
 
   /**
@@ -2007,12 +2292,16 @@ class ServerGame {
     const player = this.players.get(playerId);
     if (!player) return;
 
-    // Only allow respawn if player is dead and hasn't cashed out
-    if (player.alive || player.cashedOut) {
-      console.log(`❌ Respawn denied for ${player.username} - alive: ${player.alive}, cashedOut: ${player.cashedOut}`);
+    // Only check if player is alive
+    if (player.alive) {
+      console.log(`❌ Respawn denied for ${player.username} - already alive`);
       return;
     }
 
+    // Reset cashout state before respawning
+    player.cashedOut = false;
+    player.cashoutBalance = 0;
+    
     console.log(`🔄 Processing respawn request for ${player.username}`);
     this.respawnPlayer(player);
   }
@@ -2022,29 +2311,36 @@ class ServerGame {
    * @param {ServerSnake} player - Player to respawn
    */
   respawnPlayer(player) {
-    // Reset player to alive state
-    player.alive = true;
-
     // Reset position to random location
     player.x = Math.random() * this.worldWidth;
     player.y = Math.random() * this.worldHeight;
 
-    // Reset segments to just head
-    player.segments = [{
-      x: player.x,
-      y: player.y,
-      health: 100,
-      maxHealth: 100
-    }];
+    // If player was cashed out, use special reset method
+    if (player.cashedOut) {
+      player.resetAfterCashout();
+    } else {
+      // Reset player to alive state
+      player.alive = true;
 
-    // Reset cash to initial wager
-    player.collectedCash = player.wager;
+      // Reset segments to just head
+      player.segments = [{
+        x: player.x,
+        y: player.y,
+        health: 100,
+        maxHealth: 100
+      }];
 
-    // Reset boost
-    player.boost = player.maxBoost;
+      // Reset cash to initial wager
+      player.collectedCash = player.wager;
 
-    // Reset cashout state
-    player.cashedOut = false;
+      // Reset boost
+      player.boost = player.maxBoost;
+
+      // Activate spawn invincibility
+      player.activateSpawnInvincibility(player.wager);
+    }
+
+    // Reset all gameplay states
     player.wantsRespawn = false;
 
     // Reset weapon inventory to sidearm only (warfare mode)
@@ -2064,9 +2360,6 @@ class ServerGame {
       player.resetPowerupInventory();
       console.log(`⚡ Reset ${player.username}'s powerup inventory`);
     }
-
-    // Activate spawn invincibility
-    player.activateSpawnInvincibility(player.wager);
 
     console.log(`🔄 Player ${player.username} respawned at (${Math.round(player.x)}, ${Math.round(player.y)})`);
   }
@@ -2281,70 +2574,85 @@ class ServerGame {
    */
   checkFoodCollisions(player) {
     const vacuumRadius = player.size * 3.5; // Original vacuum radius
+    const collectRadius = player.size + 5; // Slightly larger than snake size for better collection feel
 
     this.food = this.food.filter(food => {
+      if (food.collected) return false; // Skip already collected food
+
       const distance = Math.hypot(food.x - player.x, food.y - player.y);
 
       // Vacuum effect - pull food toward snake (ORIGINAL MECHANIC)
-      if (distance < vacuumRadius && distance > player.size + food.size) {
-        // Stronger pull that increases as food gets closer
+      if (distance < vacuumRadius && distance > collectRadius && !food.collected) {
+        // Calculate pull strength that increases as food gets closer
         const distanceRatio = 1 - (distance / vacuumRadius);
-        const pullStrength = 1.2 + distanceRatio * 2.0; // Much stronger pull
+        const pullStrength = 1.2 + distanceRatio * 2.0; // Stronger pull when closer
+        
+        // Calculate angle and movement
         const angle = Math.atan2(player.y - food.y, player.x - food.x);
-        food.x += Math.cos(angle) * pullStrength;
-        food.y += Math.sin(angle) * pullStrength;
+        const dx = Math.cos(angle) * pullStrength;
+        const dy = Math.sin(angle) * pullStrength;
+        
+        // Update food position with velocity damping
+        food.vx = (food.vx || 0) * 0.8 + dx * 0.2;
+        food.vy = (food.vy || 0) * 0.8 + dy * 0.2;
+        food.x += food.vx;
+        food.y += food.vy;
       }
 
       // Collect food on contact
-      if (distance < player.size + food.size) {
+      if (distance < collectRadius) {
+        // Mark as collected immediately
+        food.collected = true;
+        
         // Food gives ONLY SPEED BOOST and BOOST PERCENTAGE - NO GROWTH (original mechanics)
-
-        // Food gives 1% speed boost - original mechanic
         player.addSpeedBoost(1);
-
-        // Food adds to boost percentage and removes cap - EXACT ORIGINAL MECHANIC
-        player.boostCapRemoved = true; // Remove boost cap when collecting food
-        player.boost += 5; // Add 5% boost (no cap when collecting food)
-
+        player.boostCapRemoved = true;
+        player.boost += 5;
+        
         return false; // Remove food
       }
+
       return true; // Keep food
     });
 
-    // Apply vacuum effect to AI snakes as well
+    // Apply vacuum effect to AI snakes with the same improvements
     this.aiSnakes.forEach(aiSnake => {
       if (!aiSnake.alive) return;
 
       const aiVacuumRadius = aiSnake.size * 3.5;
+      const aiCollectRadius = aiSnake.size + 5;
 
       this.food.forEach(food => {
+        if (food.collected) return; // Skip already collected food
+
         const distance = Math.hypot(food.x - aiSnake.x, food.y - aiSnake.y);
 
         // Vacuum effect for AI snakes
-        if (distance < aiVacuumRadius && distance > aiSnake.size + food.size) {
+        if (distance < aiVacuumRadius && distance > aiCollectRadius) {
           const distanceRatio = 1 - (distance / aiVacuumRadius);
           const pullStrength = 1.2 + distanceRatio * 2.0;
+          
           const angle = Math.atan2(aiSnake.y - food.y, aiSnake.x - food.x);
-          food.x += Math.cos(angle) * pullStrength;
-          food.y += Math.sin(angle) * pullStrength;
+          const dx = Math.cos(angle) * pullStrength;
+          const dy = Math.sin(angle) * pullStrength;
+          
+          food.vx = (food.vx || 0) * 0.8 + dx * 0.2;
+          food.vy = (food.vy || 0) * 0.8 + dy * 0.2;
+          food.x += food.vx;
+          food.y += food.vy;
         }
 
         // AI food collection
-        if (distance < aiSnake.size + food.size) {
-          // Same mechanics as players - EXACT ORIGINAL (NO GROWTH)
-          aiSnake.addSpeedBoost(1);
-
-          // Food adds to boost percentage and removes cap - EXACT ORIGINAL MECHANIC
-          aiSnake.boostCapRemoved = true; // Remove boost cap when collecting food
-          aiSnake.boost += 5; // Add 5% boost (no cap when collecting food)
-
-          // Mark food for removal
+        if (distance < aiCollectRadius) {
           food.collected = true;
+          aiSnake.addSpeedBoost(1);
+          aiSnake.boostCapRemoved = true;
+          aiSnake.boost += 5;
         }
       });
     });
 
-    // Remove collected food
+    // Clean up collected food
     this.food = this.food.filter(food => !food.collected);
   }
 
@@ -2444,56 +2752,288 @@ class ServerGame {
         continue;
       }
 
-      // Check if this player's head hits the other player's body (not head)
-      for (let i = 1; i < otherPlayer.segments.length; i++) { // Start from 1 to skip head
+      const playerIsRamming = player.hasActivePowerup('battering_ram') && player.boosting;
+      const otherPlayerIsRamming = otherPlayer.hasActivePowerup('battering_ram') && otherPlayer.boosting;
+
+      // --- BODY COLLISIONS ---
+      // Check if player's head hits other player's body segments
+      for (let i = 1; i < otherPlayer.segments.length; i++) {
         const segment = otherPlayer.segments[i];
         const distance = Math.hypot(segment.x - player.x, segment.y - player.y);
 
         if (distance < player.size + otherPlayer.size) {
-          // Head-to-body collision - only the attacking player dies
-          player.alive = false;
-
-          // Reset inventory upon death (warfare mode only)
-          if (this.gameMode === 'warfare') {
-            player.resetWeaponInventory();
-            player.resetAmmoInventory();
-            player.resetPowerupInventory();
-            console.log(`🔄 Reset ${player.username}'s inventory upon collision death`);
+          if (playerIsRamming) {
+            this.createCollisionEffect({ type: 'battering_ram_impact', weaponType: 'battering_ram' }, segment.x, segment.y, 'battering_ram_body_hit', otherPlayer);
+            this.breakOffSegments(otherPlayer, i, player.playerId);
+            // Rammer (player) survives this body segment hit.
+            // Victim (otherPlayer) might die if all segments are gone (handled in breakOffSegments).
+            return; // Collision handled for this pair, player continues its update loop.
+          } else {
+            // Standard head-to-body collision: player (attacker) dies.
+            this.handleSnakeDeath(player, otherPlayer.playerId, 'collision', 'body_hit');
+            return; // Player died, exit checks for this player.
           }
-
-          this.createCoinsFromSnake(player);
-          this.schedulePlayerRespawn(player);
-          return;
         }
       }
 
-      // Check head-to-head collision separately (only check once per pair)
-      if (player.id < otherPlayer.id) { // Only check once per pair to avoid double processing
+      // Symmetrical check: otherPlayer's head hits player's body segments
+      // Only if otherPlayer is NOT invincible (already checked for 'player')
+      if (!otherPlayer.isInvincible()) { // Re-check for otherPlayer as attacker
+          for (let i = 1; i < player.segments.length; i++) {
+            const segment = player.segments[i];
+            const distance = Math.hypot(segment.x - otherPlayer.x, segment.y - otherPlayer.y);
+
+            if (distance < otherPlayer.size + player.size) {
+              if (otherPlayerIsRamming) {
+                this.createCollisionEffect({ type: 'battering_ram_impact', weaponType: 'battering_ram' }, segment.x, segment.y, 'battering_ram_body_hit', player);
+                this.breakOffSegments(player, i, otherPlayer.playerId);
+                // Rammer (otherPlayer) survives. Victim (player) might die.
+                // Since 'player' is the one this function iteration is for, if it dies, we should return.
+                if (!player.alive) return;
+                // If player survived segment loss, otherPlayer handled, continue player's main loop.
+                // This interaction with otherPlayer is done.
+                // We must be careful not to immediately re-process a collision with this same otherPlayer in this loop.
+                // However, the outer loop iterates otherPlayer, so it will check collisions for otherPlayer in its own main turn.
+                // This logic here correctly handles otherPlayer ramming player's body.
+                // To prevent player from continuing and possibly hitting otherPlayer again in the *same* checkPlayerCollisions(player) call:
+                // We can `continue` the outer loop to move to the next `otherPlayer`.
+                // This means `player` will not check head-to-head with this `otherPlayer` after its body was rammed.
+                // This seems reasonable: if your body is rammed, the interaction is resolved for this tick from your perspective.
+                continue; // Move to the next otherPlayer for 'player' to check against.
+              } else {
+                // Standard head-to-body: otherPlayer (attacker) dies.
+                // This is otherPlayer's attack, so they die. Player (victim) survives.
+                // This specific death (otherPlayer) will be handled when checkPlayerCollisions(otherPlayer) is called.
+                // No action needed for 'player' here other than noting it was hit.
+              }
+            }
+          }
+      }
+
+      // --- HEAD-TO-HEAD COLLISIONS ---
+      // Only check once per pair to avoid double processing and ensure correct ramming priority.
+      if (player.playerId < otherPlayer.playerId) { 
         const headDistance = Math.hypot(otherPlayer.x - player.x, otherPlayer.y - player.y);
         if (headDistance < player.size + otherPlayer.size) {
-          // Head-to-head collision - both die
-          player.alive = false;
-          otherPlayer.alive = false;
+          if (playerIsRamming && !otherPlayerIsRamming) {
+            this.handleBatteringRamHeadCollision(player, otherPlayer); // Rammer, Victim
+          } else if (!playerIsRamming && otherPlayerIsRamming) {
+            this.handleBatteringRamHeadCollision(otherPlayer, player); // Rammer, Victim
+          } else if (playerIsRamming && otherPlayerIsRamming) {
+            // Both ramming: a spectacular clash! Both should be annihilated.
+            this.createCollisionEffect({ type: 'battering_ram_clash', weaponType: 'battering_ram' }, (player.x + otherPlayer.x) / 2, (player.y + otherPlayer.y) / 2, 'battering_ram_head_clash');
+            // Helmets (if any) are obliterated instantly by such a force.
+            if (player.hasHelmet()) player.damageHelmet(2000); // Ensure helmet breaks
+            if (otherPlayer.hasHelmet()) otherPlayer.damageHelmet(2000); // Ensure helmet breaks
+            this.createHelmetBreakEffect(player.x,player.y); // visual effect if helmet was there
+            this.createHelmetBreakEffect(otherPlayer.x,otherPlayer.y); // visual effect if helmet was there
 
-          // Reset inventory upon death (warfare mode only)
-          if (this.gameMode === 'warfare') {
-            player.resetWeaponInventory();
-            player.resetAmmoInventory();
-            player.resetPowerupInventory();
-            otherPlayer.resetWeaponInventory();
-            otherPlayer.resetAmmoInventory();
-            otherPlayer.resetPowerupInventory();
-            console.log(`🔄 Reset both ${player.username} and ${otherPlayer.username} inventory upon head-to-head collision`);
+            this.handleSnakeDeath(player, otherPlayer.playerId, 'battering_ram_clash', 'head_on_ram_clash');
+            this.handleSnakeDeath(otherPlayer, player.playerId, 'battering_ram_clash', 'head_on_ram_clash');
+          } else {
+            // Standard head-to-head (neither ramming)
+            const playerHasHelmet = player.hasHelmet && player.hasHelmet();
+            const otherHasHelmet = otherPlayer.hasHelmet && otherPlayer.hasHelmet();
+            if (playerHasHelmet || otherHasHelmet) {
+              this.handleHelmetHeadCollision(player, otherPlayer, playerHasHelmet, otherHasHelmet);
+            } else {
+              // No helmets, both die.
+              this.handleSnakeDeath(player, otherPlayer.playerId, 'collision', 'head_on');
+              this.handleSnakeDeath(otherPlayer, player.playerId, 'collision', 'head_on');
+            }
           }
-
-          this.createCoinsFromSnake(player);
-          this.createCoinsFromSnake(otherPlayer);
-          this.schedulePlayerRespawn(player);
-          this.schedulePlayerRespawn(otherPlayer);
-          return;
+          return; // Head-to-head collision handled for this pair.
         }
       }
     }
+  }
+
+  /**
+   * Handle helmet head collision with bounce mechanics
+   * @param {ServerSnake} player1 - First player in collision
+   * @param {ServerSnake} player2 - Second player in collision
+   * @param {boolean} player1HasHelmet - Whether player1 has helmet
+   * @param {boolean} player2HasHelmet - Whether player2 has helmet
+   */
+  handleHelmetHeadCollision(player1, player2, player1HasHelmet, player2HasHelmet) {
+    // Calculate collision vector (from player1 to player2)
+    const dx = player2.x - player1.x;
+    const dy = player2.y - player1.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance === 0) return; // Avoid division by zero
+
+    // Normalize collision vector
+    const nx = dx / distance;
+    const ny = dy / distance;
+
+    // Calculate bounce force and separation distance
+    const bounceForce = 150; // How far apart they bounce
+    const speedReduction = 0.7; // Speed reduction after bounce
+
+    // Separate the players
+    const separationDistance = (player1.size + player2.size) * 1.2;
+    const overlap = separationDistance - distance;
+    const separationForce = overlap * 0.5;
+
+    player1.x -= nx * separationForce;
+    player1.y -= ny * separationForce;
+    player2.x += nx * separationForce;
+    player2.y += ny * separationForce;
+
+    // Apply bounce velocities (reverse their movement directions)
+    const bounceAngle1 = Math.atan2(-ny, -nx) + (Math.random() - 0.5) * 0.3; // Add randomness
+    const bounceAngle2 = Math.atan2(ny, nx) + (Math.random() - 0.5) * 0.3;
+
+    // Update movement angles with bounce
+    player1.angle = bounceAngle1;
+    player2.angle = bounceAngle2;
+
+    // Apply temporary speed boost for bounce effect
+    const originalSpeed1 = player1.baseSpeed;
+    const originalSpeed2 = player2.baseSpeed;
+
+    // Temporarily increase speed for bounce effect
+    player1.baseSpeed *= 1.5;
+    player2.baseSpeed *= 1.5;
+
+    // Reset speed after a short time
+    setTimeout(() => {
+      player1.baseSpeed = originalSpeed1;
+      player2.baseSpeed = originalSpeed2;
+    }, 500);
+
+    // Handle helmet damage and destruction
+    if (player1HasHelmet) {
+      const helmetDestroyed = player1.damageHelmet(500); // Full helmet damage
+      if (helmetDestroyed) {
+        console.log(`🪖 ${player1.username}'s helmet was destroyed in head collision!`);
+        this.createHelmetBreakEffect(player1.x, player1.y);
+      }
+    }
+
+    if (player2HasHelmet) {
+      const helmetDestroyed = player2.damageHelmet(500); // Full helmet damage
+      if (helmetDestroyed) {
+        console.log(`🪖 ${player2.username}'s helmet was destroyed in head collision!`);
+        this.createHelmetBreakEffect(player2.x, player2.y);
+      }
+    }
+
+    // Create bounce effect
+    this.createBounceEffect((player1.x + player2.x) / 2, (player1.y + player2.y) / 2);
+
+    console.log(`⚡ ${player1.username} and ${player2.username} bounced off each other (helmet protection)`);
+  }
+
+  /**
+   * Create helmet break effect
+   * @param {number} x - Effect location X
+   * @param {number} y - Effect location Y
+   */
+  createHelmetBreakEffect(x, y) {
+    const effectId = `helmet_break_${Date.now()}_${Math.random()}`;
+
+    const effect = {
+      id: effectId,
+      x: x,
+      y: y,
+      type: 'helmet_break',
+      createdAt: Date.now(),
+      duration: 1000,
+      particles: this.generateHelmetBreakParticles(x, y),
+      color: '#888888',
+      size: 30,
+      intensity: 2.0
+    };
+
+    this.collisionEffects.push(effect);
+  }
+
+  /**
+   * Generate particles for helmet break effect
+   * @param {number} x - Effect center X
+   * @param {number} y - Effect center Y
+   * @returns {Array} - Array of particles
+   */
+  generateHelmetBreakParticles(x, y) {
+    const particles = [];
+    const particleCount = 20;
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 0.5;
+      const speed = 4 + Math.random() * 6;
+      const size = 2 + Math.random() * 4;
+      const life = 800 + Math.random() * 400;
+
+      particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: size,
+        life: life,
+        maxLife: life,
+        color: '#888888' // Gray for helmet fragments
+      });
+    }
+
+    return particles;
+  }
+
+  /**
+   * Create bounce effect for player collisions
+   * @param {number} x - Effect location X
+   * @param {number} y - Effect location Y
+   */
+  createBounceEffect(x, y) {
+    const effectId = `bounce_${Date.now()}_${Math.random()}`;
+
+    const effect = {
+      id: effectId,
+      x: x,
+      y: y,
+      type: 'bounce',
+      createdAt: Date.now(),
+      duration: 600,
+      particles: this.generateBounceParticles(x, y),
+      color: '#FFFF00',
+      size: 20,
+      intensity: 1.5
+    };
+
+    this.collisionEffects.push(effect);
+  }
+
+  /**
+   * Generate particles for bounce effect
+   * @param {number} x - Effect center X
+   * @param {number} y - Effect center Y
+   * @returns {Array} - Array of particles
+   */
+  generateBounceParticles(x, y) {
+    const particles = [];
+    const particleCount = 12;
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (Math.PI * 2 * i) / particleCount;
+      const speed = 3 + Math.random() * 4;
+      const size = 3 + Math.random() * 3;
+      const life = 500 + Math.random() * 300;
+
+      particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: size,
+        life: life,
+        maxLife: life,
+        color: '#FFFF00' // Yellow for bounce effect
+      });
+    }
+
+    return particles;
   }
 
   /**
@@ -2501,59 +3041,120 @@ class ServerGame {
    * @param {ServerSnake} player - Player to check
    */
   checkPlayerToAICollisions(player) {
-    // Skip collision checks if this player is invincible
     if (player.isInvincible()) return;
 
     for (const aiSnake of this.aiSnakes) {
-      if (!aiSnake.alive || aiSnake.isInvincible()) {
+      if (!aiSnake.alive || aiSnake.isInvincible()) { // AI can also be invincible (e.g. spawn)
         continue;
       }
 
-      // Check if player's head hits AI's body (not head)
-      for (let i = 1; i < aiSnake.segments.length; i++) { // Start from 1 to skip head
+      const playerIsRamming = player.hasActivePowerup('battering_ram') && player.boosting;
+
+      // --- BODY COLLISIONS ---
+      // Check if player's head hits AI snake's body segments
+      for (let i = 1; i < aiSnake.segments.length; i++) {
         const segment = aiSnake.segments[i];
         const distance = Math.hypot(segment.x - player.x, segment.y - player.y);
 
         if (distance < player.size + aiSnake.size) {
-          // Head-to-body collision - only the attacking player dies
-          player.alive = false;
-
-          // Reset inventory upon death (warfare mode only)
-          if (this.gameMode === 'warfare') {
-            player.resetWeaponInventory();
-            player.resetAmmoInventory();
-            player.resetPowerupInventory();
-            console.log(`🔄 Reset ${player.username}'s inventory upon AI collision death`);
+          if (playerIsRamming) {
+            this.createCollisionEffect({ type: 'battering_ram_impact', weaponType: 'battering_ram' }, segment.x, segment.y, 'battering_ram_body_hit_ai', aiSnake);
+            this.breakOffSegments(aiSnake, i, player.playerId);
+            // Rammer (player) survives. AI (victim) might die if segments are gone.
+            return; // Collision handled for this AI, player continues.
+          } else {
+            // Standard head-to-body: player (attacker) dies.
+            this.handleSnakeDeath(player, aiSnake.username, 'collision', 'body_hit_ai');
+            return; // Player died.
           }
-
-          this.createCoinsFromSnake(player);
-          this.schedulePlayerRespawn(player);
-          return;
         }
       }
-
-      // Check head-to-head collision
+      
+      // --- HEAD-TO-HEAD COLLISIONS ---
       const headDistance = Math.hypot(aiSnake.x - player.x, aiSnake.y - player.y);
       if (headDistance < player.size + aiSnake.size) {
-        // Head-to-head collision - both die
-        player.alive = false;
-        aiSnake.alive = false;
-
-        // Reset inventory upon death (warfare mode only) - only for human player
-        if (this.gameMode === 'warfare') {
-          player.resetWeaponInventory();
-          player.resetAmmoInventory();
-          player.resetPowerupInventory();
-          console.log(`🔄 Reset ${player.username}'s inventory upon head-to-head AI collision`);
+        if (playerIsRamming) { // Player ramming AI head
+          this.handleBatteringRamHeadCollision(player, aiSnake); // Rammer (player), Victim (AI)
+        } else {
+          // Standard head-to-head: Player vs AI (player not ramming)
+          const playerHasHelmet = player.hasHelmet && player.hasHelmet();
+          // AI does not have helmets in current logic.
+          if (playerHasHelmet) {
+            // Player's helmet vs AI's head. AI dies, Player's helmet takes damage, players bounce.
+            this.handleHelmetHeadCollisionWithAI(player, aiSnake, true);
+          } else {
+            // No helmet for player, AI also has no helmet. Both die.
+            this.handleSnakeDeath(player, aiSnake.username, 'collision', 'head_on_ai');
+            this.handleSnakeDeath(aiSnake, player.playerId, 'collision', 'head_on_player_victim_ai');
+          }
         }
-
-        this.createCoinsFromSnake(player);
-        this.createCoinsFromSnake(aiSnake);
-        this.schedulePlayerRespawn(player);
-        this.scheduleAIRespawn(aiSnake);
-        return;
+        return; // Head-to-head collision handled for this AI.
       }
     }
+  }
+
+  /**
+   * Handle helmet head collision with AI (simplified version)
+   * @param {ServerSnake} player - Player with helmet
+   * @param {ServerSnake} aiSnake - AI snake in collision
+   * @param {boolean} playerHasHelmet - Whether player has helmet
+   */
+  handleHelmetHeadCollisionWithAI(player, aiSnake, playerHasHelmet) {
+    // Calculate collision vector (from player to AI)
+    const dx = aiSnake.x - player.x;
+    const dy = aiSnake.y - player.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance === 0) return; // Avoid division by zero
+
+    // Normalize collision vector
+    const nx = dx / distance;
+    const ny = dy / distance;
+
+    // Separate the player and AI
+    const separationDistance = (player.size + aiSnake.size) * 1.2;
+    const overlap = separationDistance - distance;
+    const separationForce = overlap * 0.5;
+
+    player.x -= nx * separationForce;
+    player.y -= ny * separationForce;
+    aiSnake.x += nx * separationForce;
+    aiSnake.y += ny * separationForce;
+
+    // Apply bounce velocities
+    const bounceAngle1 = Math.atan2(-ny, -nx) + (Math.random() - 0.5) * 0.3;
+    const bounceAngle2 = Math.atan2(ny, nx) + (Math.random() - 0.5) * 0.3;
+
+    // Update movement angles with bounce
+    player.angle = bounceAngle1;
+    aiSnake.angle = bounceAngle2;
+
+    // Apply temporary speed boost for bounce effect
+    const originalPlayerSpeed = player.baseSpeed;
+    const originalAISpeed = aiSnake.baseSpeed;
+
+    player.baseSpeed *= 1.5;
+    aiSnake.baseSpeed *= 1.5;
+
+    // Reset speed after a short time
+    setTimeout(() => {
+      player.baseSpeed = originalPlayerSpeed;
+      aiSnake.baseSpeed = originalAISpeed;
+    }, 500);
+
+    // Handle helmet damage and destruction
+    if (playerHasHelmet) {
+      const helmetDestroyed = player.damageHelmet(500); // Full helmet damage
+      if (helmetDestroyed) {
+        console.log(`🪖 ${player.username}'s helmet was destroyed in AI collision!`);
+        this.createHelmetBreakEffect(player.x, player.y);
+      }
+    }
+
+    // Create bounce effect
+    this.createBounceEffect((player.x + aiSnake.x) / 2, (player.y + aiSnake.y) / 2);
+
+    console.log(`⚡ ${player.username} bounced off AI ${aiSnake.username} (helmet protection)`);
   }
 
   /**
@@ -2561,30 +3162,76 @@ class ServerGame {
    * @param {ServerSnake} aiSnake - AI snake to check
    */
   checkAIToPlayerCollisions(aiSnake) {
-    // Skip collision checks if this AI is invincible
     if (aiSnake.isInvincible()) return;
 
     for (const player of this.players.values()) {
       if (!player.alive || player.isInvincible()) {
         continue;
       }
+      
+      // Assume AI can have and use Battering Ram offensively, if logic were implemented
+      const aiIsRamming = aiSnake.hasActivePowerup('battering_ram') && aiSnake.boosting;
 
-      // Check if AI's head hits player's body (not head)
-      for (let i = 1; i < player.segments.length; i++) { // Start from 1 to skip head
+      // --- BODY COLLISIONS ---
+      // Check if AI's head hits player's body segments
+      for (let i = 1; i < player.segments.length; i++) {
         const segment = player.segments[i];
         const distance = Math.hypot(segment.x - aiSnake.x, segment.y - aiSnake.y);
 
         if (distance < aiSnake.size + player.size) {
-          // Head-to-body collision - only the attacking AI dies
-          aiSnake.alive = false;
-          this.createCoinsFromSnake(aiSnake);
-          this.scheduleAIRespawn(aiSnake);
-          return;
+          if (aiIsRamming) {
+             this.createCollisionEffect({ type: 'battering_ram_impact', weaponType: 'battering_ram' }, segment.x, segment.y, 'battering_ram_body_hit_by_ai', player);
+             this.breakOffSegments(player, i, aiSnake.username); // AI is the attacker
+             // Rammer (AI) survives. Player (victim) might die.
+             if (!player.alive) return; // Player died as a result of AI ramming its body.
+             // If player survived, this interaction with this AI is resolved for the player in this tick.
+             // However, this function is aiSnake's turn. AI continues its checks.
+             return; // Collision handled for this player, AI continues its update loop.
+          } else {
+            // Standard head-to-body: AI (attacker) dies.
+            this.handleSnakeDeath(aiSnake, player.playerId, 'collision', 'body_hit_player');
+            return; // AI died.
+          }
         }
       }
+      
+      // --- HEAD-TO-HEAD COLLISIONS ---
+      const headDistance = Math.hypot(player.x - aiSnake.x, player.y - aiSnake.y);
+      if (headDistance < aiSnake.size + player.size) {
+        // Check if player is also ramming (for player-initiated ram, it's handled in checkPlayerToAICollisions)
+        const playerIsRamming = player.hasActivePowerup('battering_ram') && player.boosting;
 
-      // Check head-to-head collision (already handled in checkPlayerToAICollisions to avoid double processing)
-      // We don't need to check this here since it's handled in the player collision check
+        if (aiIsRamming && !playerIsRamming && !player.isInvincible()) { // AI ramming non-ramming Player head
+          this.handleBatteringRamHeadCollision(aiSnake, player); // Rammer (AI), Victim (player)
+        } else if (playerIsRamming && !aiIsRamming && !aiSnake.isInvincible()) { // Player ramming non-ramming AI head (should be caught by checkPlayerToAICollisions ideally)
+           this.handleBatteringRamHeadCollision(player, aiSnake); // Rammer (player), Victim (AI)
+        } else if (aiIsRamming && playerIsRamming && !player.isInvincible() && !aiSnake.isInvincible()) { // Both Ramming
+            this.createCollisionEffect({ type: 'battering_ram_clash', weaponType: 'battering_ram' }, (player.x + aiSnake.x) / 2, (player.y + aiSnake.y) / 2, 'battering_ram_head_clash_ai_player');
+            if (player.hasHelmet()) player.damageHelmet(2000);
+            // AI doesn't have helmet, but if it did: if (aiSnake.hasHelmet()) aiSnake.damageHelmet(2000);
+            this.createHelmetBreakEffect(player.x,player.y);
+            // this.createHelmetBreakEffect(aiSnake.x,aiSnake.y); // if AI had helmet
+            this.handleSnakeDeath(player, aiSnake.username, 'battering_ram_clash', 'head_on_ram_clash_player_victim');
+            this.handleSnakeDeath(aiSnake, player.playerId, 'battering_ram_clash', 'head_on_ram_clash_ai_victim');
+        } else {
+          // Standard head-to-head (neither ramming, or one is invincible and ram doesn't apply)
+          // AI is attacker here. Player might have helmet.
+          const playerHasHelmet = player.hasHelmet && player.hasHelmet();
+          if (playerHasHelmet && !aiSnake.isInvincible()) { // AI hits Player's helmet
+             // This is like handleHelmetHeadCollisionWithAI, but AI is attacker
+             // AI dies, player helmet takes damage and bounces.
+             this.handleSnakeDeath(aiSnake, player.playerId, 'collision', 'head_on_player_helmet');
+             player.damageHelmet(500); // Player helmet takes damage
+             this.createBounceEffect((player.x + aiSnake.x)/2, (player.y + aiSnake.y)/2); // Generic bounce
+          } else if (!player.isInvincible() && !aiSnake.isInvincible()){ 
+            // No player helmet, or AI is ramming a non-ramming player and no helmet involved
+            // or standard head to head where neither is invincible and no helmets on player.
+            this.handleSnakeDeath(aiSnake, player.playerId, 'collision', 'head_on_player');
+            this.handleSnakeDeath(player, aiSnake.username, 'collision', 'head_on_ai_victim_player');
+          }
+        }
+        return; // Head-to-head collision handled.
+      }
     }
   }
 
@@ -2593,7 +3240,6 @@ class ServerGame {
    * @param {ServerSnake} aiSnake - AI snake to check
    */
   checkAIToAICollisions(aiSnake) {
-    // Skip collision checks if this AI is invincible
     if (aiSnake.isInvincible()) return;
 
     for (const otherAI of this.aiSnakes) {
@@ -2601,32 +3247,67 @@ class ServerGame {
         continue;
       }
 
-      // Check if this AI's head hits the other AI's body (not head)
-      for (let i = 1; i < otherAI.segments.length; i++) { // Start from 1 to skip head
+      const aiIsRamming = aiSnake.hasActivePowerup('battering_ram') && aiSnake.boosting;
+      const otherAIIsRamming = otherAI.hasActivePowerup('battering_ram') && otherAI.boosting;
+
+      // --- BODY COLLISIONS ---
+      // Check if aiSnake's head hits otherAI's body segments
+      for (let i = 1; i < otherAI.segments.length; i++) {
         const segment = otherAI.segments[i];
         const distance = Math.hypot(segment.x - aiSnake.x, segment.y - aiSnake.y);
 
         if (distance < aiSnake.size + otherAI.size) {
-          // Head-to-body collision - only the attacking AI dies
-          aiSnake.alive = false;
-          this.createCoinsFromSnake(aiSnake);
-          this.scheduleAIRespawn(aiSnake);
-          return;
+          if (aiIsRamming) {
+            this.createCollisionEffect({ type: 'battering_ram_impact', weaponType: 'battering_ram' }, segment.x, segment.y, 'battering_ram_body_hit_ai_vs_ai', otherAI);
+            this.breakOffSegments(otherAI, i, aiSnake.username); // aiSnake is attacker
+            // Rammer (aiSnake) survives. Victim (otherAI) might die.
+            return; // Collision handled for this otherAI, aiSnake continues.
+          } else {
+            // Standard head-to-body: aiSnake (attacker) dies.
+            this.handleSnakeDeath(aiSnake, otherAI.username, 'collision', 'body_hit_ai_on_ai');
+            return; // aiSnake died.
+          }
+        }
+      }
+      
+      // Symmetrical check: otherAI's head hits aiSnake's body segments
+      if (otherAIIsRamming && !aiSnake.isInvincible()) { // aiSnake must not be invincible
+          for (let i = 1; i < aiSnake.segments.length; i++) {
+            const segment = aiSnake.segments[i];
+            const distance = Math.hypot(segment.x - otherAI.x, segment.y - otherAI.y);
+            if (distance < otherAI.size + aiSnake.size) {
+                this.createCollisionEffect({ type: 'battering_ram_impact', weaponType: 'battering_ram' }, segment.x, segment.y, 'battering_ram_body_hit_by_ai_on_ai', aiSnake);
+                this.breakOffSegments(aiSnake, i, otherAI.username);
+                if (!aiSnake.alive) return; // aiSnake (victim) died.
+                continue; // Move to next otherAI for aiSnake to check against.
+            }
         }
       }
 
-      // Check head-to-head collision (only check once per pair)
-      if (aiSnake.username < otherAI.username) { // Only check once per pair to avoid double processing
+      // --- HEAD-TO-HEAD COLLISIONS ---
+      // Only check once per pair to avoid double processing.
+      if (aiSnake.username < otherAI.username) { // Use username for unique pairing for AI
         const headDistance = Math.hypot(otherAI.x - aiSnake.x, otherAI.y - aiSnake.y);
         if (headDistance < aiSnake.size + otherAI.size) {
-          // Head-to-head collision - both die
-          aiSnake.alive = false;
-          otherAI.alive = false;
-          this.createCoinsFromSnake(aiSnake);
-          this.createCoinsFromSnake(otherAI);
-          this.scheduleAIRespawn(aiSnake);
-          this.scheduleAIRespawn(otherAI);
-          return;
+          if (aiIsRamming && !otherAIIsRamming && !otherAI.isInvincible()) {
+            this.handleBatteringRamHeadCollision(aiSnake, otherAI); // Rammer, Victim
+          } else if (!aiIsRamming && otherAIIsRamming && !aiSnake.isInvincible()) {
+            this.handleBatteringRamHeadCollision(otherAI, aiSnake); // Rammer, Victim
+          } else if (aiIsRamming && otherAIIsRamming && !aiSnake.isInvincible() && !otherAI.isInvincible()) {
+            // Both AI ramming: Clash!
+            this.createCollisionEffect({ type: 'battering_ram_clash', weaponType: 'battering_ram' }, (aiSnake.x + otherAI.x) / 2, (aiSnake.y + otherAI.y) / 2, 'battering_ram_head_clash_ai_vs_ai');
+            // AI don't have helmets currently, but if they did:
+            // if (aiSnake.hasHelmet()) aiSnake.damageHelmet(2000);
+            // if (otherAI.hasHelmet()) otherAI.damageHelmet(2000);
+            this.handleSnakeDeath(aiSnake, otherAI.username, 'battering_ram_clash', 'head_on_ram_clash_ai_vs_ai');
+            this.handleSnakeDeath(otherAI, aiSnake.username, 'battering_ram_clash', 'head_on_ram_clash_ai_vs_ai');
+          } else if (!aiSnake.isInvincible() && !otherAI.isInvincible()){
+            // Standard head-to-head (neither ramming, or one is invincible)
+            // AI don't have helmets, so both die.
+            this.handleSnakeDeath(aiSnake, otherAI.username, 'collision', 'head_on_ai_vs_ai');
+            this.handleSnakeDeath(otherAI, aiSnake.username, 'collision', 'head_on_ai_vs_ai');
+          }
+          return; // Head-to-head collision handled for this pair.
         }
       }
     }
@@ -2719,7 +3400,10 @@ class ServerGame {
         y: y,
         color: `hsl(${Math.random() * 360}, 70%, 60%)`,
         size: 4 + Math.random() * 3,
-        value: 1
+        value: 1,
+        vx: 0, // For vacuum
+        vy: 0, // For vacuum
+        attractedToPlayerId: null // For vacuum
       });
     }
 
@@ -2753,6 +3437,7 @@ class ServerGame {
         y: Math.random() * this.worldHeight,
         type: this.getRandomWeaponType(),
         collected: false,
+        vx: 0, vy: 0, attractedToPlayerId: null, // For vacuum
         animationOffset: Math.random() * Math.PI * 2,
         pulsePhase: Math.random() * Math.PI * 2,
         rotationSpeed: 0.5 + Math.random() * 1.0
@@ -2768,6 +3453,7 @@ class ServerGame {
         type: this.getRandomAmmoType(),
         amount: Math.floor(10 + Math.random() * 20),
         collected: false,
+        vx: 0, vy: 0, attractedToPlayerId: null, // For vacuum
         bobPhase: Math.random() * Math.PI * 2,
         sparklePhase: Math.random() * Math.PI * 2,
         animationOffset: Math.random() * Math.PI * 2
@@ -2782,11 +3468,40 @@ class ServerGame {
         y: Math.random() * this.worldHeight,
         type: this.getRandomPowerupType(),
         collected: false,
+        vx: 0, vy: 0, attractedToPlayerId: null, // For vacuum
         bobPhase: Math.random() * Math.PI * 2,
         animationOffset: Math.random() * Math.PI * 2,
         pulsePhase: Math.random() * Math.PI * 2
       });
     }
+  }
+
+  /**
+   * Update warfare collectibles (apply vacuum effect)
+   */
+  updateWarfareCollectibles() {
+    const playerAttractors = Array.from(this.players.values());
+
+    // Weapons
+    this.weapons = this.weapons.filter(weapon => {
+      if (weapon.collected) return false;
+      this.applyVacuumToItem(weapon, playerAttractors, 'weapon');
+      return true;
+    });
+
+    // Ammo
+    this.ammo = this.ammo.filter(ammo_item => { // Changed 'ammo' to 'ammo_item' to avoid conflict with array name
+      if (ammo_item.collected) return false;
+      this.applyVacuumToItem(ammo_item, playerAttractors, 'ammo');
+      return true;
+    });
+
+    // Powerups
+    this.powerups = this.powerups.filter(powerup => {
+      if (powerup.collected) return false;
+      this.applyVacuumToItem(powerup, playerAttractors, 'powerup');
+      return true;
+    });
   }
 
   /**
@@ -2798,6 +3513,38 @@ class ServerGame {
     this.inputRateLimit.clear();
     this.shootRateLimit.clear();
     console.log('🗑️ ServerGame destroyed');
+  }
+
+  // NEW FUNCTION for Battering Ram head-on collisions
+  handleBatteringRamHeadCollision(rammer, victim) {
+    this.createCollisionEffect(
+      { type: 'battering_ram_impact', weaponType: 'battering_ram' }, // Simplified projectile-like object for effect
+      victim.x, 
+      victim.y, 
+      'battering_ram_head_hit', 
+      victim
+    );
+
+    const victimHadHelmet = victim.hasHelmet && victim.hasHelmet();
+    if (victimHadHelmet) {
+      const helmetDestroyed = victim.damageHelmet(1000); // Battering ram deals massive damage, effectively destroying helmet
+      if (helmetDestroyed) {
+        this.createHelmetBreakEffect(victim.x, victim.y);
+      }
+      console.log(`💥 ${rammer.username}'s Battering Ram hit ${victim.username}'s helmet! Helmet health: ${victim.getHelmet() ? victim.getHelmet().currentHelmetHealth : 'N/A'}`);
+    }
+    
+    this.handleSnakeDeath(victim, rammer.playerId || rammer.username, 'battering_ram', 'head_on_ram');
+    console.log(`💥 ${rammer.username} (Battering Ram) fatally struck ${victim.username} head-on.`);
+  }
+
+  updateFoodItems() {
+    const potentialAttractors = [...this.players.values(), ...(this.enableAI ? this.aiSnakes : [])];
+    this.food = this.food.filter(foodItem => {
+      if (foodItem.collected) return false; // Though food collection is handled in checkFoodCollisions
+      this.applyVacuumToItem(foodItem, potentialAttractors, 'food');
+      return true; // Keep food for collision check
+    });
   }
 }
 

@@ -21,7 +21,7 @@ class GameRoom extends EventEmitter {
       worldWidth: options.worldWidth || 6000,
       worldHeight: options.worldHeight || 6000,
       maxPlayers: this.maxPlayers,
-      enableAI: options.enableAI !== undefined ? options.enableAI : true
+      enableAI: true //options.enableAI !== undefined ? options.enableAI : true
     });
 
     // Set up broadcast methods for the game instance
@@ -337,7 +337,10 @@ class GameRoom extends EventEmitter {
       const newInterval = this.calculateOptimalBroadcastInterval();
       if (Math.abs(newInterval - this.broadcastInterval) > 1) {
         this.broadcastInterval = newInterval;
-        console.log(`📡 Adjusted broadcast rate to ${(1000/newInterval).toFixed(1)} FPS for ${this.players.size} players`);
+        // Log broadcast rate changes only every 10000 ticks to reduce spam
+        if (this.performanceStats.tickCount % 10000 === 0) {
+          console.log(`📡 Adjusted broadcast rate to ${(1000/newInterval).toFixed(1)} FPS for ${this.players.size} players`);
+        }
       }
     }
   }

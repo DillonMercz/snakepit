@@ -1,0 +1,63 @@
+# Game Requirements
+- User requires exact preservation of all original game mechanics and visual design when converting to multiplayer - any changes to gameplay or appearance are unacceptable.
+- User requires exact preservation of original movement mechanics, cashout features, and growth mechanics from the original gamelogic file when implementing multiplayer versions.
+- User requires exact preservation of all original growth mass/length mechanics from the original script when implementing multiplayer versions.
+- User requires that multiplayer snake implementation should use the existing snake logic from the original GameLogic file instead of creating separate rendering logic.
+- In Snake games, only dead players should drop money/coins, not food - the coins should represent the exact value of the dead player with each coin being a fractionalized amount of their total value.
+- User prefers using the snakepit currency icon image with golden glow effect for coins that drop when players are killed in multiplayer, instead of the current gold coin drawing. User prefers golden glow (not orange) for coins dropped by killed players and wants coins to be larger so the currency icon is more visible.
+- User requires systematic replication of all game logic from original GameLogic file to ServerGame.js, preserving exact mechanics for movement, growth, cashout, food spawning, collision detection, scoring, and mode-specific features without altering any original gameplay mechanics.
+- In classic mode, snake body and tail must never stop moving regardless of head movement, and growth should happen gradually between head and tail in both length and width.
+- Server classic mode needs more food spawning than the original amounts, and movement mechanics must be identical to original classic mode implementation.
+- User wants world boundaries to connect with edge of screen when they move all the way to hit a boundary.
+- User requires that when hitting world boundaries in games, the player should move all the way to the world edge and the world edge should align perfectly with the screen edge (they should overlap).
+- User requires the game to run with server-side multiplayer logic, not client-side simulation.
+- In the original game, orbs and food should NOT make the player grow, and boosting does not decrease size - this corrects previous understanding of these core mechanics.
+- User requires that the original gameLogic.js file should not be modified as it's the reference implementation for building multiplayer versions.
+- User requires that warfare mode should include the original game's powerups, weapons, and inventory slots UI elements to match the original game experience.
+- User places game icons in the public/assets folder for the SnakePit game.
+- User requires that all game objects (ammo, weapons, powerups, coins, snakes) must be persistent and receive real-time updates in multiplayer games.
+- User requires weapons and inventory to reset upon death in multiplayer games.
+- User requires powerups to visually change snake appearance (helmet should put actual helmet on snake head, armor shows armor).
+- User wants drastically fewer orbs in warfare mode.
+- User requires specific powerup visual effects: battering ram should show meteor design around snake head when boosting, helmet should put actual helmet on snake head, forcefield should make snake body glow with pulses, and all powerups should be visible to all players.
+- User prefers to disable AI players in multiplayer games to ensure truly multiplayer-only experience.
+- User prefers crown icons from icon libraries for both the king player indicator and the king status display, and questions why the king has two crowns.
+- User wants elimination banners/notifications that display when a player eliminates another player, showing the eliminated player's username and the weapon/method used.
+- User wants projectile collision effects when projectiles hit players for enhanced visual feedback.
+- User requires bounce mechanics: world boundary bouncing to prevent corner camping, forcefield powerup causes bullet ricochets, and helmet powerup allows surviving one head collision with bounce-back before breaking.
+- User prefers better formatted names for inventory items instead of lowercase underscored format (e.g., not 'item_name' but proper display names).
+
+# World Size & Food Distribution Preferences
+- User prefers a map size of 6000x6000, with appropriate accommodations for the changed world size.
+- User prefers even higher food density in multiplayer games than the current increased amounts (4000-5000 food).
+- Large numbers of food objects (80k+) cause significant performance drops and crashes in multiplayer games, requiring optimization strategies like smarter distribution instead of just increasing object counts.
+- User prefers implementing advanced performance optimizations (spatial partitioning, culling, object pooling, batch updates) to enable high food counts without performance drops in games.
+
+# Technical Preferences & Performance Optimization
+- User is interested in evaluating uWebSockets as an alternative to Socket.IO for the multiplayer snake game implementation.
+- User prefers Socket.IO for real-time multiplayer games with room-based architecture supporting up to 100 players per room, server-side game logic, and maintaining exact existing functionality during conversions.
+- User prefers slower movement speed and wants to ensure the same movement algorithm from classic mode is used consistently across game modes.
+- Game movement speed needs platform-specific adjustments as it runs too fast on PC and too slow on MacBook.
+- User prioritizes extremely smooth gameplay for remote clients and wants network/performance optimizations implemented.
+- User prefers dynamic camera zoom that scales proportionally to the player's snake size rather than fixed zoom increments or aggressive zoom-out that makes snake appear smaller.
+- User wants the game to run at 120 FPS and is interested in knowing/optimizing tick rates for better performance.
+- User prefers mouse scroll wheel for weapon switching functionality in games.
+- User prefers server-side handling of all Supabase database operations rather than client-side database calls.
+- User is interested in optimizing server performance metrics, particularly network efficiency (currently 46.9%) and tick/network times for multiplayer games.
+- User prefers minimal server logging and finds excessive console output spammy and distracting.
+- User prefers to remove spammy boost logging messages from the server console output.
+- User requires performance optimizations to maintain exact visual design and appearance - no changes to the look/style of animations during optimization.
+
+# UI Preferences
+- User prefers low-profile, non-invasive UI designs over visually spectacular but distracting elements that interfere with gameplay.
+- User prefers consolidated game UI with controller icon, FPS indicator, connection status, and zoom level in top HUD, and wants controller status displays removed from bottom left.
+- User prefers low profile/compact inventory design over larger, more prominent inventory layouts.
+- User prefers low-profile collapsible inventory UI that can collapse to show only weapon slots with names, images, and ammo counts, expandable via clicking an 'I' button.
+- User prefers collapsed inventory to show three squares with large weapon icon thumbnails and text underneath displaying 'name | ammo' format.
+- User prefers status bar positioned under the minimap, and wants the original cash tracker UI and cashout button restored and positioned under the status bar.
+- User prefers inventory slots without titles/headers, using actual weapon images from public/assets folder, and uniform square sizing for all weapon slots.
+- User prefers impressive, 'wow-factor' visual designs for UI elements like player info cards that make a strong visual impact.
+- User prefers player info cards with colorful borders around names and transparent/see-through card backgrounds instead of solid backgrounds.
+- User prefers minimal spacing between snake head and player info tag, finds current cash value font hard to read, and wants crown icons from public/assets folder with green glow background effects.
+- User prefers more readable text for player names in UI elements and wants improved text visibility/contrast.
+- User prefers dark grey text for usernames instead of white text with glow effects for better readability.

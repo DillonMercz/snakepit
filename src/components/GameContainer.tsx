@@ -3,16 +3,20 @@ import { GameMode } from '../App';
 import GameUI from './GameUI';
 import GameCanvas from './GameCanvas';
 import Minimap from './Minimap';
-import Instructions from './Instructions';
+import StatusBar from './StatusBar';
 import GameOver from './GameOver';
 import CashoutSuccess from './CashoutSuccess';
-import ControllerStatus from './ControllerStatus';
 import EliminationBanner from './EliminationBanner';
 import { useAuth } from '../contexts/AuthContext';
 import { GameStatsService } from '../services/GameStatsService';
 
 interface GameContainerProps {
   gameMode: GameMode;
+  userData?: {
+    username: string;
+    wager: number;
+    xrpBalance: number;
+  } | null;
   onBackToMenu: () => void;
 }
 
@@ -64,7 +68,7 @@ export interface GameState {
   isKing?: boolean; // Whether this player is currently the king (highest cash)
 }
 
-const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu }) => {
+const GameContainer: React.FC<GameContainerProps> = ({ gameMode, userData, onBackToMenu }) => {
   const { user, userProfile } = useAuth();
 
   const [gameState, setGameState] = useState<GameState>({
@@ -234,9 +238,12 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu })
           gameInstanceRef={gameInstanceRef}
           onGameStateUpdate={setGameState}
           onElimination={handleElimination}
+          userData={userData}
         />
 
         {/* Overlay UI elements on top of the game canvas */}
+        <StatusBar gameInstanceRef={gameInstanceRef} />
+
         <GameUI
           gameState={gameState}
           gameMode={gameMode}
@@ -244,10 +251,6 @@ const GameContainer: React.FC<GameContainerProps> = ({ gameMode, onBackToMenu })
         />
 
         <Minimap gameInstanceRef={gameInstanceRef} />
-
-        <Instructions gameMode={gameMode} />
-
-        <ControllerStatus gameInstanceRef={gameInstanceRef} />
 
         {/* Elimination Banner */}
         <EliminationBanner

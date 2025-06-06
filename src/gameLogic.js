@@ -2572,7 +2572,7 @@ class Game {
                     x: segment.x + (Math.random() - 0.5) * 40,
                     y: segment.y + (Math.random() - 0.5) * 40,
                     value: valuePerCoin,
-                    size: 8 + Math.random() * 4,
+                    size: 15 + Math.random() * 8, // Larger size between 15-23 for better visibility
                     color: '#FFD700', // Gold color for coins
                     collected: false,
                     bobPhase: Math.random() * Math.PI * 2,
@@ -2609,7 +2609,7 @@ class Game {
                     x: segment.x + (Math.random() - 0.5) * 30,
                     y: segment.y + (Math.random() - 0.5) * 30,
                     value: Math.floor(segmentValue / 3), // Divide value among coins
-                    size: 8 + Math.random() * 4,
+                    size: 15 + Math.random() * 8, // Larger size between 15-23 for better visibility
                     color: '#FFD700', // Gold color for coins
                     collected: false,
                     bobPhase: Math.random() * Math.PI * 2,
@@ -3099,7 +3099,6 @@ class Game {
 
                     // Golden orbs add 100% boost in both modes
                     snake.boost += 100; // ADD 100% boost, don't set to 100%
-                    console.log(`Golden orb collected! Boost increased by 100%, now at ${snake.boost}%`);
 
                     if (this.gameMode === 'classic') {
                         // Classic mode - orbs also give growth
@@ -3403,6 +3402,12 @@ class Game {
     drawCoins() {
         if (!this.coins) return;
 
+        // Load currency icon if not already loaded
+        if (!this.currencyIcon) {
+            this.currencyIcon = new Image();
+            this.currencyIcon.src = '/assets/SnakePit Currency Icon.png';
+        }
+
         const time = Date.now() * 0.001;
 
         this.coins.forEach(coin => {
@@ -3423,11 +3428,12 @@ class Game {
             // Sparkle animation
             const sparkleIntensity = Math.sin(time * 4 + coin.sparklePhase) * 0.5 + 0.5;
 
-            // Draw coin glow
-            const glowSize = coin.size * (2 + sparkleIntensity * 0.5);
+            // Enhanced pure golden glow effect
+            const glowSize = coin.size * (2.5 + sparkleIntensity * 0.5);
             const glowGradient = this.ctx.createRadialGradient(x, finalY, 0, x, finalY, glowSize);
-            glowGradient.addColorStop(0, '#FFD700');
-            glowGradient.addColorStop(0.5, 'rgba(255, 215, 0, 0.6)');
+            glowGradient.addColorStop(0, 'rgba(255, 215, 0, 0.8)');
+            glowGradient.addColorStop(0.3, 'rgba(255, 215, 0, 0.6)');
+            glowGradient.addColorStop(0.6, 'rgba(255, 215, 0, 0.3)');
             glowGradient.addColorStop(1, 'transparent');
 
             this.ctx.fillStyle = glowGradient;
@@ -3435,33 +3441,55 @@ class Game {
             this.ctx.arc(x, finalY, glowSize, 0, Math.PI * 2);
             this.ctx.fill();
 
-            // Draw main coin
-            const coinGradient = this.ctx.createRadialGradient(
-                x - coin.size * 0.3, finalY - coin.size * 0.3, 0,
-                x, finalY, coin.size
-            );
-            coinGradient.addColorStop(0, '#FFFF80');
-            coinGradient.addColorStop(0.7, '#FFD700');
-            coinGradient.addColorStop(1, '#B8860B');
+            // Draw currency icon if loaded
+            if (this.currencyIcon && this.currencyIcon.complete) {
+                const iconSize = coin.size * 3; // Make icon much larger for better visibility
 
-            this.ctx.fillStyle = coinGradient;
-            this.ctx.beginPath();
-            this.ctx.arc(x, finalY, coin.size, 0, Math.PI * 2);
-            this.ctx.fill();
+                // Add golden tint to the icon
+                this.ctx.save();
+                this.ctx.globalCompositeOperation = 'multiply';
+                this.ctx.fillStyle = '#FFD700';
+                this.ctx.fillRect(x - iconSize/2, finalY - iconSize/2, iconSize, iconSize);
+                this.ctx.globalCompositeOperation = 'source-over';
 
-            // Draw coin outline
-            this.ctx.strokeStyle = '#B8860B';
-            this.ctx.lineWidth = 2;
-            this.ctx.beginPath();
-            this.ctx.arc(x, finalY, coin.size, 0, Math.PI * 2);
-            this.ctx.stroke();
+                // Draw the currency icon
+                this.ctx.drawImage(
+                    this.currencyIcon,
+                    x - iconSize/2,
+                    finalY - iconSize/2,
+                    iconSize,
+                    iconSize
+                );
+                this.ctx.restore();
+            } else {
+                // Fallback to original coin drawing if image not loaded
+                const coinGradient = this.ctx.createRadialGradient(
+                    x - coin.size * 0.3, finalY - coin.size * 0.3, 0,
+                    x, finalY, coin.size
+                );
+                coinGradient.addColorStop(0, '#FFFF80');
+                coinGradient.addColorStop(0.7, '#FFD700');
+                coinGradient.addColorStop(1, '#B8860B');
 
-            // Draw dollar sign
-            this.ctx.fillStyle = '#8B4513';
-            this.ctx.font = `${coin.size * 1.2}px bold monospace`;
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText('$', x, finalY);
+                this.ctx.fillStyle = coinGradient;
+                this.ctx.beginPath();
+                this.ctx.arc(x, finalY, coin.size, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                // Draw coin outline
+                this.ctx.strokeStyle = '#B8860B';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.arc(x, finalY, coin.size, 0, Math.PI * 2);
+                this.ctx.stroke();
+
+                // Draw dollar sign
+                this.ctx.fillStyle = '#8B4513';
+                this.ctx.font = `${coin.size * 1.2}px bold monospace`;
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('$', x, finalY);
+            }
 
             // Draw sparkles around coin
             for (let i = 0; i < 4; i++) {
@@ -6001,7 +6029,7 @@ class Game {
         this.boosting = this.isButtonPressed(gamepad.index, boostButton);
 
         if (this.boosting && !wasBoosting) {
-            console.log('🎮 Boost button pressed');
+            // Boost button pressed - no logging to reduce spam
         }
 
         // Handle shooting (right trigger) - only if not invincible

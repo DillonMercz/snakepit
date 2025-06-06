@@ -120,10 +120,15 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Initialize falling items
+    // Performance optimizations
+    let lastFrameTime = 0;
+    const targetFPS = 30; // Limit to 30 FPS for better performance
+    const frameInterval = 1000 / targetFPS;
+
+    // Initialize falling items - reduced count for better performance
     const initItems = () => {
       itemsRef.current = [];
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 25; i++) { // Reduced from 50 to 25
         itemsRef.current.push(createRandomItem());
       }
     };
@@ -278,41 +283,41 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
       ctx.restore();
     };
 
-    // Helper function to draw cartoon star sparkles
+    // Optimized sparkles function - reduced complexity for better performance
     const drawSparkles = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number, time: number) => {
       ctx.save();
       ctx.translate(x, y);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.globalAlpha = 0.8;
 
-      // Draw multiple small sparkles around the item
+      // Draw simplified sparkles (circles instead of complex stars)
       for (let i = 0; i < 3; i++) {
         const angle = (time * 0.02 + i * Math.PI * 2 / 3);
         const sparkleX = Math.cos(angle) * (size * 1.5);
         const sparkleY = Math.sin(angle) * (size * 1.5);
-        const sparkleSize = 3 + Math.sin(time * 0.1 + i) * 2;
+        const sparkleSize = 2 + Math.sin(time * 0.1 + i) * 1;
 
-        ctx.fillStyle = '#FFFFFF';
-        ctx.globalAlpha = 0.8;
-
-        // Draw star shape
+        // Simple circle sparkle instead of complex star
         ctx.beginPath();
-        for (let j = 0; j < 5; j++) {
-          const starAngle = (j * Math.PI * 2 / 5) + time * 0.05;
-          const radius = j % 2 === 0 ? sparkleSize : sparkleSize * 0.5;
-          const px = sparkleX + Math.cos(starAngle) * radius;
-          const py = sparkleY + Math.sin(starAngle) * radius;
-
-          if (j === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
+        ctx.arc(sparkleX, sparkleY, sparkleSize, 0, Math.PI * 2);
         ctx.fill();
       }
 
       ctx.restore();
     };
 
-    const animate = () => {
+    const animate = (currentTime: number) => {
+      // Frame rate limiting for better performance
+      if (currentTime - lastFrameTime < frameInterval) {
+        animationRef.current = requestAnimationFrame(animate);
+        return;
+      }
+      lastFrameTime = currentTime;
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Cache time calculation outside the loop
+      const time = currentTime;
 
       // Update and draw items
       itemsRef.current.forEach((item, index) => {
@@ -332,9 +337,9 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
           return;
         }
 
-        // Draw sparkles first (behind the item)
-        if (Math.random() < 0.3) { // Only some items get sparkles for variety
-          drawSparkles(ctx, item.x, item.y, currentSize, Date.now() + index * 1000);
+        // Reduce sparkle frequency for better performance (every 4th frame)
+        if (index % 4 === Math.floor(time / frameInterval) % 4) {
+          drawSparkles(ctx, item.x, item.y, currentSize, time + index * 1000);
         }
 
         // Draw based on type with bounce effect
@@ -355,7 +360,7 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
     };
 
     initItems();
-    animate();
+    animate(0); // Start with initial time of 0
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
@@ -372,6 +377,11 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Performance optimizations for logo snakes
+    let lastLogoFrameTime = 0;
+    const logoTargetFPS = 30; // Limit to 30 FPS for better performance
+    const logoFrameInterval = 1000 / logoTargetFPS;
 
     // Set canvas size to match container
     const resizeCanvas = () => {
@@ -549,7 +559,14 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
       ctx.fill();
     };
 
-    const animateLogoSnakes = () => {
+    const animateLogoSnakes = (currentTime: number) => {
+      // Frame rate limiting for better performance
+      if (currentTime - lastLogoFrameTime < logoFrameInterval) {
+        logoSnakesAnimationRef.current = requestAnimationFrame(animateLogoSnakes);
+        return;
+      }
+      lastLogoFrameTime = currentTime;
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       logoSnakesRef.current.forEach(snake => {
@@ -581,7 +598,7 @@ const GameModeSelect: React.FC<GameModeSelectProps> = ({ onModeSelect }) => {
       logoSnakesAnimationRef.current = requestAnimationFrame(animateLogoSnakes);
     };
 
-    animateLogoSnakes();
+    animateLogoSnakes(0); // Start with initial time of 0
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
